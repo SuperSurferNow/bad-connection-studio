@@ -1,0 +1,22 @@
+Bad Connection Studio
+
+This installer contains the application, the Qt runtime and the FFmpeg
+libraries it needs. See share/doc/BadConnectionStudio/LICENSES.md and
+LICENSE-REPORT.txt for the licenses of bundled components. If the bundled
+FFmpeg build is GPL-licensed (reported in Help > About), the whole
+distribution is covered by the GNU GPL.
+
+IMPORTANT - VIRTUAL DEVICES ARE NOT INCLUDED
+
+Windows apps cannot create webcams or microphones by themselves. This
+installer does NOT install any driver or virtual-device component.
+
+ * Virtual camera: install the separate, signed "Bad Connection Studio
+   Virtual Camera" component (Softcam DirectShow filter). It has its own
+   uninstaller.
+ * Virtual microphone: install a virtual audio cable such as VB-Audio
+   Virtual Cable from its vendor.
+
+Without them the app still runs and shows a preview of the degraded video
+and a level meter of the degraded audio. Your physical camera and
+microphone are never modified.

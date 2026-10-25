@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.badconnectionstudio</id>
+  <name>Bad Connection Studio</name>
+  <summary>Degrade live camera and microphone feeds through a low-bitrate codec</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <launchable type="desktop-id">bad-connection-studio.desktop</launchable>
+  <description>
+    <p>Encodes your live camera and microphone at a chosen low bitrate, decodes them in-process and publishes the
+    degraded result as a virtual camera (v4l2loopback) and a virtual microphone (PipeWire).</p>
+  </description>
+</component>

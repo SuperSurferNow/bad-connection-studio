@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Bad Connection Studio
+GenericName=Webcam and microphone degrader
+Comment=Degrade your live camera and microphone through a real low-bitrate codec
+Exec=bad-connection-studio
+Icon=bad-connection-studio
+Terminal=false
+Categories=AudioVideo;Video;Audio;
+Keywords=webcam;virtual camera;microphone;bitrate;codec;

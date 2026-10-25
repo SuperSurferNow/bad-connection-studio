@@ -1,0 +1,146 @@
+name: Windows installer
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build + test (MSYS2 UCRT64)
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-ninja
+            mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-qt6-base mingw-w64-ucrt-x86_64-qt6-multimedia
+            mingw-w64-ucrt-x86_64-ffmpeg mingw-w64-ucrt-x86_64-nsis binutils
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build
+      - name: Unit and codec round-trip tests
+        run: ctest --test-dir build --output-on-failure
+      - name: Stage install tree + license report
+        run: |
+          cmake --install build --prefix "$PWD/stage"
+          scripts/license-report-msys2.sh stage > stage/share/doc/BadConnectionStudio/LICENSE-REPORT.txt
+          cat stage/share/doc/BadConnectionStudio/LICENSE-REPORT.txt
+          QT_QPA_PLATFORM=offscreen stage/bin/bad-connection-studio.exe --self-test > self-test.txt || true
+          cat self-test.txt
+          if grep -q unredistributable self-test.txt; then echo "nonfree FFmpeg build: refusing to package"; exit 1; fi
+      - name: Build installer (CPack NSIS)
+        run: |
+          cp stage/share/doc/BadConnectionStudio/LICENSE-REPORT.txt build/
+          cd build && cpack -G NSIS
+      - name: Sign installer (only when a certificate is configured)
+        shell: pwsh
+        env:
+          CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        run: |
+          if (-not $env:CERT_PFX_BASE64) { Write-Host "No signing certificate configured: installer left unsigned (development build)."; exit 0 }
+          [IO.File]::WriteAllBytes("cert.pfx", [Convert]::FromBase64String($env:CERT_PFX_BASE64))
+          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" | Select-Object -Last 1
+          & $signtool sign /f cert.pfx /p $env:CERT_PASSWORD /fd sha256 /tr http://timestamp.digicert.com /td sha256 build\BadConnectionStudio-*-setup.exe
+          Remove-Item cert.pfx
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: |
+            build/BadConnectionStudio-*-setup.exe
+            stage/share/doc/BadConnectionStudio/LICENSE-REPORT.txt
+
+  clean-machine:
+    # Fresh runner, MSYS2 not on PATH: the installed app must find all of its
+    # Qt/FFmpeg DLLs in its own directory.
+    name: Clean install + self-test
+    needs: build
+    runs-on: windows-2022
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-installer
+      - name: Silent install
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem -Recurse -Filter "BadConnectionStudio-*-setup.exe" | Select-Object -First 1
+          Start-Process -Wait -FilePath $setup.FullName -ArgumentList "/S", "/D=C:\BCS"
+          if (-not (Test-Path C:\BCS\bin\bad-connection-studio.exe)) { throw "install failed" }
+      - name: Self-test
+        shell: pwsh
+        run: |
+          $env:PATH = ($env:PATH -split ';' | Where-Object { $_ -notmatch 'msys|mingw|Qt' }) -join ';'
+          $env:QT_QPA_PLATFORM = "offscreen"
+          $p = Start-Process -Wait -PassThru -NoNewWindow -FilePath C:\BCS\bin\bad-connection-studio.exe `
+               -ArgumentList "--self-test" -RedirectStandardOutput self-test.txt
+          Get-Content self-test.txt
+          if ($p.ExitCode -ne 0) { throw "self-test failed ($($p.ExitCode))" }
+          if (-not (Select-String -Path self-test.txt -Pattern "softcam")) { throw "virtual camera status missing from report" }
+      - name: Uninstall
+        shell: pwsh
+        run: |
+          Start-Process -Wait -FilePath C:\BCS\Uninstall.exe -ArgumentList "/S"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-clean-self-test
+          path: self-test.txt
+
+  virtual-camera-component:
+    # The Softcam component is built and published ONLY when a code-signing
+    # certificate is available. An unsigned DirectShow filter is never shipped.
+    name: Virtual camera component (signed only)
+    runs-on: windows-2022
+    env:
+      # Pin a reviewed Softcam release tag before enabling signing; the
+      # solution/output paths below follow that repository's layout.
+      SOFTCAM_REF: v1.8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for signing certificate
+        id: cert
+        shell: pwsh
+        env:
+          CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
+        run: |
+          if ($env:CERT_PFX_BASE64) { "present=true" >> $env:GITHUB_OUTPUT } else {
+            "present=false" >> $env:GITHUB_OUTPUT
+            Write-Host "::notice::No code-signing certificate configured; the virtual camera component is not built."
+          }
+      - name: Build Softcam
+        if: steps.cert.outputs.present == 'true'
+        shell: pwsh
+        run: |
+          git clone --depth 1 --branch $env:SOFTCAM_REF https://github.com/tshino/softcam.git softcam
+          $msbuild = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -find MSBuild\**\Bin\MSBuild.exe
+          & $msbuild softcam\softcam.sln /p:Configuration=Release /p:Platform=x64
+          Copy-Item softcam\x64\Release\softcam.dll packaging\windows\virtual-camera\
+          Copy-Item softcam\LICENSE packaging\windows\virtual-camera\softcam-LICENSE.txt
+      - name: Sign DLL, build and sign component installer
+        if: steps.cert.outputs.present == 'true'
+        shell: pwsh
+        env:
+          CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        run: |
+          [IO.File]::WriteAllBytes("cert.pfx", [Convert]::FromBase64String($env:CERT_PFX_BASE64))
+          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" | Select-Object -Last 1
+          & $signtool sign /f cert.pfx /p $env:CERT_PASSWORD /fd sha256 /tr http://timestamp.digicert.com /td sha256 packaging\windows\virtual-camera\softcam.dll
+          if ((Get-AuthenticodeSignature packaging\windows\virtual-camera\softcam.dll).Status -ne 'Valid') { throw "softcam.dll is not validly signed" }
+          cd packaging\windows\virtual-camera
+          & "C:\Program Files (x86)\NSIS\makensis.exe" /DSOFTCAM_DLL=softcam.dll /DVERSION=$env:SOFTCAM_REF softcam-component.nsi
+          & $signtool sign /f ..\..\..\cert.pfx /p $env:CERT_PASSWORD /fd sha256 /tr http://timestamp.digicert.com /td sha256 BadConnectionStudio-VirtualCamera-*-Setup.exe
+          Remove-Item ..\..\..\cert.pfx
+      - uses: actions/upload-artifact@v4
+        if: steps.cert.outputs.present == 'true'
+        with:
+          name: windows-virtual-camera-component
+          path: packaging/windows/virtual-camera/BadConnectionStudio-VirtualCamera-*-Setup.exe
