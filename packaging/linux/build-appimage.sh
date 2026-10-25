@@ -39,9 +39,19 @@ DESTDIR="$APPDIR" cmake --install "$BUILD"
 
 # Qt: find qmake6 for the plugin.
 export QMAKE="${QMAKE:-$(command -v qmake6 || command -v qmake-qt6 || echo /usr/lib64/qt6/bin/qmake)}"
-# Wayland + X11 platform plugins; multimedia plugins follow from Qt6::Multimedia.
-# offscreen is used by the headless smoke test in CI.
-export EXTRA_PLATFORM_PLUGINS="libqwayland-generic.so;libqwayland-egl.so;libqxcb.so;libqoffscreen.so"
+# Multimedia plugins follow from Qt6::Multimedia.
+# Wayland + X11 + offscreen (headless CI smoke test). Plugin file names
+# differ between Qt versions (6.11 merged the Wayland plugins into
+# libqwayland.so), so deploy whichever of them this Qt actually has.
+PLATFORMS_DIR="$("$QMAKE" -query QT_INSTALL_PLUGINS)/platforms"
+EXTRA_PLATFORM_PLUGINS=""
+for p in libqwayland.so libqwayland-generic.so libqwayland-egl.so libqxcb.so libqoffscreen.so; do
+    if [ -f "$PLATFORMS_DIR/$p" ]; then
+        EXTRA_PLATFORM_PLUGINS="${EXTRA_PLATFORM_PLUGINS:+$EXTRA_PLATFORM_PLUGINS;}$p"
+    fi
+done
+export EXTRA_PLATFORM_PLUGINS
+echo "platform plugins: $EXTRA_PLATFORM_PLUGINS"
 export DEPLOY_PLATFORM_THEMES=1
 
 VERSION="$(grep -m1 -oE '^ +VERSION [0-9.]+' "$SRC_DIR/CMakeLists.txt" | awk '{print $2}')"
