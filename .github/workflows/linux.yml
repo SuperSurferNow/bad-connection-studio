@@ -104,14 +104,19 @@ jobs:
           chmod +x BadConnectionStudio-*.AppImage
           ./BadConnectionStudio-*.AppImage --appimage-extract >/dev/null
           # The glibc loader itself lists dependencies (no ldd needed).
-          loader="$(ls /lib64/ld-linux-x86-64.so.2 /lib/ld-linux-aarch64.so.1 2>/dev/null | head -1)"
+          loader=""
+          for l in /lib64/ld-linux-x86-64.so.2 /lib/ld-linux-aarch64.so.1; do
+            if [ -e "$l" ]; then loader="$l"; fi
+          done
           export LD_LIBRARY_PATH="$PWD/squashfs-root/usr/lib"
           deps="$("$loader" --list squashfs-root/usr/bin/bad-connection-studio 2>&1 || true)"
           for f in squashfs-root/usr/lib/*.so* squashfs-root/usr/plugins/*/*.so; do
+            [ -e "$f" ] || continue
             deps="$deps
           $("$loader" --list "$f" 2>&1 || true)"
           done
-          missing="$(echo "$deps" | grep 'not found' | sort -u | tr -s ' \t' ' ' || true)"
+          # "lib => not found" (executable) or "...: cannot open shared object file" (library)
+          missing="$(echo "$deps" | grep -E 'not found|cannot open shared object' | sed 's/.*error while loading shared libraries: //' | sort -u | tr -s ' \t' ' ' || true)"
           avcodec="$(echo "$deps" | grep -m1 'libavcodec' || true)"
           echo "libavcodec resolves to: $avcodec"
           if [ -n "$missing" ]; then
