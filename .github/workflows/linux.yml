@@ -140,6 +140,15 @@ jobs:
           src/scripts/ci-step.sh "AppImage self-test" ./BadConnectionStudio-*.AppImage --appimage-extract-and-run --self-test | tee self-test.txt
           grep -q "Result: PASS" self-test.txt
           grep -q "v4l2loopback" self-test.txt   # missing driver is explained, not a crash
+      - name: Diagnose a failed self-test (strace)
+        if: failure()
+        run: |
+          (command -v dnf >/dev/null && dnf -y install strace) || zypper -n install strace
+          export QT_QPA_PLATFORM=offscreen
+          strace -f -tt -e trace=process,execve -o trace.txt ./BadConnectionStudio-*.AppImage --appimage-extract-and-run --self-test > /dev/null 2>&1 || true
+          msg=""
+          while IFS= read -r line; do msg+="${line:0:220}%0A"; done < <(grep -E 'execve|exit|fork|clone|kill|SIG' trace.txt | tail -n 30)
+          echo "::error title=strace (process events)::${msg}"
       - name: GUI smoke test (offscreen, generated test pattern)
         run: |
           export QT_QPA_PLATFORM=offscreen
