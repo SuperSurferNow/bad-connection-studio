@@ -13,7 +13,7 @@ platform and multimedia plugins), FFmpeg and the codec libraries.
 | Feature | OS component | Bundled? | Needed for |
 |---|---|---|---|
 | Virtual camera | `v4l2loopback` kernel module | No | Call apps seeing "Bad Connection Camera" |
-| Virtual microphone (native) | PipeWire user session (default on Fedora) | No (libpipewire is loaded from the host) | Call apps seeing "Bad Connection Microphone" |
+| Virtual microphone (native) | PipeWire user session (default on Fedora) | No (the host's libpipewire is used; it is present on every PipeWire or Qt 6.10+ desktop) | Call apps seeing "Bad Connection Microphone" |
 | Virtual microphone (fallback) | PulseAudio-compatible null sink + remap source | No | Systems without PipeWire |
 | Preview, meters, local monitoring | none | Yes | Always works |
 

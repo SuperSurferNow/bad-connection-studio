@@ -20,6 +20,8 @@ license it was built against at runtime (Help ▸ About and `--self-test`).
 | libx264 | **GPL-2.0+** | Optional; its presence makes the FFmpeg build GPL |
 | OpenH264 | BSD-2-Clause | Patent coverage only applies to Cisco's prebuilt binary, which must be downloaded by the user, not bundled |
 | libpulse (pulled in by Qt Multimedia on Linux) | LGPL-2.1+ | |
+| libfdk-aac (Fedora's `fdk-aac-free`, pulled in by Fedora's FFmpeg) | FDK-AAC license (Fedora-approved free subset) | Check `LICENSE-REPORT.txt`; packaging refuses FFmpeg builds marked non-redistributable |
+| Other FFmpeg dependencies (dav1d, aom, SVT-AV1, libsmbclient, ...) | Various free licenses | Pulled in by the distribution FFmpeg; all listed in `LICENSE-REPORT.txt` |
 | MinGW-w64 runtime (Windows) | ZPL / MIT-style with GCC runtime exception | |
 
 ## Not bundled (OS-level, installed by the user)
@@ -27,7 +29,7 @@ license it was built against at runtime (Help ▸ About and `--self-test`).
 | Component | License | Why not bundled |
 |---|---|---|
 | v4l2loopback | GPL-2.0 | Kernel module; must match the running kernel |
-| PipeWire / libpipewire | MIT | System service; libpipewire is `dlopen()`ed from the host to avoid version skew |
+| PipeWire / libpipewire | MIT | System service; the host's libpipewire is always used (excluded from the AppImage) to avoid version skew with the host's PipeWire modules |
 | Softcam (Windows virtual camera component) | MIT | Shipped as a **separate, signed** installer; never inside the app installer |
 | VB-Audio Virtual Cable | Proprietary donationware | Redistribution needs a license from VB-Audio; the user installs it |
 

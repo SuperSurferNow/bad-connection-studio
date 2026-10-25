@@ -6,7 +6,7 @@
 # The AppImage bundles the app, Qt (incl. platform/multimedia plugins), FFmpeg
 # and codec libraries. It deliberately does NOT bundle or install:
 #   - kernel modules (v4l2loopback),
-#   - PipeWire (libpipewire is dlopen()ed from the host at runtime),
+#   - PipeWire (libpipewire is always taken from the host),
 #   - system services, udev rules or drivers.
 # glibc is taken from the host, so the AppImage runs on distributions with a
 # glibc at least as new as the build machine's. Build on the oldest target.
@@ -47,7 +47,11 @@ export DEPLOY_PLATFORM_THEMES=1
 VERSION="$(grep -m1 -oE '^ +VERSION [0-9.]+' "$SRC_DIR/CMakeLists.txt" | awk '{print $2}')"
 export LINUXDEPLOY_OUTPUT_VERSION="$VERSION"
 
+# libpipewire must come from the host: Qt >= 6.10 Multimedia links it, and a
+# bundled copy would load the host's PipeWire modules with a mismatched
+# library. Every distribution this AppImage targets ships it.
 linuxdeploy --appdir "$APPDIR" \
+    --exclude-library 'libpipewire-0.3.so*' \
     --desktop-file "$APPDIR/usr/share/applications/bad-connection-studio.desktop" \
     --icon-file "$APPDIR/usr/share/icons/hicolor/scalable/apps/bad-connection-studio.svg" \
     --plugin qt
@@ -66,7 +70,7 @@ if grep -q "unredistributable" "$WORK/LICENSE-REPORT.txt"; then
     exit 1
 fi
 
-linuxdeploy --appdir "$APPDIR" --output appimage
+linuxdeploy --appdir "$APPDIR" --exclude-library 'libpipewire-0.3.so*' --output appimage
 mv Bad_Connection_Studio-*.AppImage "$OUT_DIR/BadConnectionStudio-${VERSION}-${ARCH}.AppImage"
 cp "$WORK/LICENSE-REPORT.txt" "$OUT_DIR/BadConnectionStudio-${VERSION}-${ARCH}.LICENSE-REPORT.txt"
 echo "Built $OUT_DIR/BadConnectionStudio-${VERSION}-${ARCH}.AppImage"

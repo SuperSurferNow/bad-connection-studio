@@ -84,12 +84,13 @@ if(BCS_WINDOWS)
     get_filename_component(BCS_TOOLCHAIN_BIN "${CMAKE_CXX_COMPILER}" DIRECTORY)
     # Qt libraries + plugins via windeployqt, and every non-system DLL the
     # executable needs (FFmpeg, codec libraries, MinGW runtime).
+    # RUNTIME_DEPENDENCIES must directly follow the target list.
     install(TARGETS bad-connection-studio
-        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
         RUNTIME_DEPENDENCIES
             PRE_EXCLUDE_REGEXES "api-ms-.*" "ext-ms-.*" "^Qt6.*"
             POST_EXCLUDE_REGEXES ".*[Ss]ystem32/.*\\.dll"
-            DIRECTORIES "${BCS_TOOLCHAIN_BIN}" ${BCS_RUNTIME_DLL_DIRS})
+            DIRECTORIES "${BCS_TOOLCHAIN_BIN}" ${BCS_RUNTIME_DLL_DIRS}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
     qt_generate_deploy_app_script(TARGET bad-connection-studio
         OUTPUT_SCRIPT bcs_deploy_script
         NO_UNSUPPORTED_PLATFORM_ERROR)
