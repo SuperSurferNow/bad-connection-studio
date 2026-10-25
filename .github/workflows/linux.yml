@@ -85,10 +85,14 @@ jobs:
               libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-render-util0 libxcb-image0 \
               libglib-2_0-0 libdbus-1-3 libpipewire-0_3-0 findutils
           fi
-      - name: Verify Qt and FFmpeg are NOT installed on the host
+      - name: Verify Qt is NOT installed on the host
         run: |
           # Search the library directories directly (minimal images may lack ldconfig).
-          found="$(find /usr /lib /lib64 /opt -xdev \( -name 'libQt6Core.so*' -o -name 'libavcodec.so*' \) 2>/dev/null || true)"
+          # Qt must be absent. A host FFmpeg may exist (e.g. pulled in by
+          # PipeWire plugins on Tumbleweed); the next step checks that the
+          # AppImage loads its own copy anyway.
+          find /usr /lib /lib64 /opt -xdev -name 'libavcodec.so*' 2>/dev/null | sed 's/^/note: host FFmpeg present: /' || true
+          found="$(find /usr /lib /lib64 /opt -xdev -name 'libQt6Core.so*' 2>/dev/null || true)"
           if [ -n "$found" ]; then
             owners="$(for f in $found; do rpm -qf "$f" 2>/dev/null; done | sort -u | tr '\n' ' ')"
             echo "::error title=Host is not clean::$(echo "$found" | head -5 | tr '\n' ' ') -- from packages: $owners"
@@ -99,14 +103,27 @@ jobs:
         run: |
           chmod +x BadConnectionStudio-*.AppImage
           ./BadConnectionStudio-*.AppImage --appimage-extract >/dev/null
-          missing="$(for f in squashfs-root/usr/bin/bad-connection-studio squashfs-root/usr/lib/*.so*; do
-                       LD_LIBRARY_PATH=squashfs-root/usr/lib ldd "$f" 2>/dev/null | grep 'not found'; done | sort -u | tr -s ' \t' ' ')"
-          rm -rf squashfs-root
+          # The glibc loader itself lists dependencies (no ldd needed).
+          loader="$(ls /lib64/ld-linux-x86-64.so.2 /lib/ld-linux-aarch64.so.1 2>/dev/null | head -1)"
+          export LD_LIBRARY_PATH="$PWD/squashfs-root/usr/lib"
+          deps="$("$loader" --list squashfs-root/usr/bin/bad-connection-studio 2>&1 || true)"
+          for f in squashfs-root/usr/lib/*.so* squashfs-root/usr/plugins/*/*.so; do
+            deps="$deps
+          $("$loader" --list "$f" 2>&1 || true)"
+          done
+          missing="$(echo "$deps" | grep 'not found' | sort -u | tr -s ' \t' ' ' || true)"
+          avcodec="$(echo "$deps" | grep -m1 'libavcodec' || true)"
+          echo "libavcodec resolves to: $avcodec"
           if [ -n "$missing" ]; then
             echo "::error title=Missing host libraries::$(echo "$missing" | tr '\n' ';')"
             exit 1
           fi
-          echo "OK: every library resolves"
+          if ! echo "$avcodec" | grep -q squashfs-root; then
+            echo "::error title=Wrong FFmpeg::the AppImage would load the host's FFmpeg: $avcodec"
+            exit 1
+          fi
+          rm -rf squashfs-root
+          echo "OK: every library resolves, bundled FFmpeg is used"
       - name: Self-test from the AppImage
         run: |
           chmod +x BadConnectionStudio-*.AppImage
