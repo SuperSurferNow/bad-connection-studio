@@ -30,6 +30,9 @@ struct CapabilityReport {
     const BackendStatus* activeMic() const;
 };
 
+// "Fedora Linux 44 / kernel ... / x86_64"
+std::string platformDescription();
+
 // Launch-time capability check: never changes system state.
 CapabilityReport probeBackends(const BackendOptions& opts);
 

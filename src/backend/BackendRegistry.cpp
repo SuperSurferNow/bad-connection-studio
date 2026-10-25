@@ -83,12 +83,17 @@ const BackendStatus* CapabilityReport::activeMic() const
     return nullptr;
 }
 
+std::string platformDescription()
+{
+    return (QSysInfo::prettyProductName() + " / kernel " + QSysInfo::kernelVersion() + " / " +
+            QSysInfo::currentCpuArchitecture())
+        .toStdString();
+}
+
 CapabilityReport probeBackends(const BackendOptions& opts)
 {
     CapabilityReport r;
-    r.platform = (QSysInfo::prettyProductName() + " / kernel " + QSysInfo::kernelVersion() + " / " +
-                  QSysInfo::currentCpuArchitecture())
-                     .toStdString();
+    r.platform = platformDescription();
     for (const auto& id : cameraBackendIds())
         if (auto b = createCameraBackend(id, opts))
             r.cameras.push_back(b->probe());

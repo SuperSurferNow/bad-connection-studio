@@ -248,11 +248,16 @@ SelfTestResult runSelfTest(const std::function<void(const std::string&)>& emit)
 
     // ---- OS integration (informational)
     r << "\nVirtual device backends (OS components are external; not a failure if missing):\n";
-    r << "  platform: " << probeBackends({}).platform << "\n";
+    r << "  platform: " << platformDescription() << "\n";
     flush();
+    auto marker = [&](const std::string& id) {
+        if (emit) // stderr, unbuffered: shows which probe was running if one crashes
+            std::fprintf(stderr, "self-test: probing backend '%s'\n", id.c_str());
+    };
     // Probe one backend at a time (they load host libraries) so a failure
     // is attributable.
     for (const auto& id : cameraBackendIds()) {
+        marker(id);
         if (auto b = createCameraBackend(id, {})) {
             BackendStatus s = b->probe();
             r << "  camera  " << (s.available ? "[ready]   " : "[missing] ") << s.displayName << ": " << s.summary << "\n";
@@ -260,6 +265,7 @@ SelfTestResult runSelfTest(const std::function<void(const std::string&)>& emit)
         }
     }
     for (const auto& id : micBackendIds()) {
+        marker(id);
         if (auto b = createMicBackend(id, {})) {
             BackendStatus s = b->probe();
             r << "  mic     " << (s.available ? "[ready]   " : "[missing] ") << s.displayName << ": " << s.summary << "\n";
