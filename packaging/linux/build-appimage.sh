@@ -57,6 +57,17 @@ export DEPLOY_PLATFORM_THEMES=1
 # current toolchains emit (Fedora 44) and fails on them. Distribution
 # libraries are already stripped, so skip it.
 export NO_STRIP=1
+# Same age problem with linuxdeploy's bundled patchelf: rewriting the rpath
+# of libraries that use DT_RELR relocations leaves init_array entries
+# unrelocated, and the app segfaults while loading them (seen with Qt's
+# FFmpeg multimedia plugin on x86_64). Use the distribution's patchelf
+# (>= 0.18 handles DT_RELR) instead.
+if command -v patchelf >/dev/null; then
+    export PATCHELF="$(command -v patchelf)"
+    echo "using $PATCHELF ($(patchelf --version))"
+else
+    echo "warning: no system patchelf; linuxdeploy's bundled one may corrupt DT_RELR libraries" >&2
+fi
 
 VERSION="$(grep -m1 -oE '^ +VERSION [0-9.]+' "$SRC_DIR/CMakeLists.txt" | awk '{print $2}')"
 export LINUXDEPLOY_OUTPUT_VERSION="$VERSION"
