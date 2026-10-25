@@ -49,8 +49,12 @@ What the CI builds use:
 
 | Build | FFmpeg source | Expected license |
 |---|---|---|
-| Linux AppImage (Fedora 44 container) | Fedora `ffmpeg-free` libraries | LGPL (Fedora's build has no x264/x265; check the report) |
+| Linux AppImage (Fedora 44 container) | Fedora `ffmpeg-free` libraries | **GPL-3.0+** (reported by `avcodec_license()` in CI; Fedora's build has no x264/x265 but enables GPL/version3 components) |
 | Windows installer (MSYS2 UCRT64) | MSYS2 `mingw-w64-ucrt-x86_64-ffmpeg` | **GPL** (MSYS2 enables x264/x265) |
+
+So both binary packages are distributed under GPL terms as a whole. The
+project's own source remains MIT and can be shipped under LGPL terms with an
+FFmpeg built without `--enable-gpl`.
 
 For an LGPL Windows build, replace the MSYS2 FFmpeg with a custom build such
 as `vcpkg install ffmpeg[avcodec,avformat,avdevice,swscale,swresample,opus,vpx]`
@@ -60,8 +64,8 @@ without the `gpl` feature, and point `PKG_CONFIG_PATH` at it.
 (see `LICENSE`). MIT is GPL-compatible. When a package bundles a GPL FFmpeg
 build (as the default Windows build does), that **binary package as a whole**
 must be distributed under the GPL's terms, including corresponding source for
-the GPL components. An LGPL FFmpeg build (the Fedora-based AppImage) has no
-such requirement beyond the LGPL obligations listed above.
+the GPL components. Both current CI packages bundle a GPL FFmpeg; an LGPL FFmpeg
+build would avoid that.
 
 ## Codec patents
 

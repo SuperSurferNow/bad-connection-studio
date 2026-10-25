@@ -27,4 +27,6 @@ Without these the app still runs, shows the degraded video preview and meters th
 
 * Linux: `chmod +x BadConnectionStudio-*.AppImage`, then run it. Use `--self-test` for a quick headless check.
 * Windows: the installer is **unsigned** unless a certificate was configured, so SmartScreen may warn ("More info ▸ Run anyway").
-* Licensing: the source is MIT. The Windows build bundles a GPL-licensed FFmpeg (MSYS2), so that binary package is distributed under GPL terms. The Linux AppImage uses Fedora's LGPL FFmpeg.
+* Licensing: the source code is MIT. Both packages bundle a GPL-licensed FFmpeg build (Fedora's on Linux, MSYS2's on Windows), so the binary packages as a whole are distributed under GPL terms; see `docs/LICENSES.md`.
+* The AppImage needs a few standard desktop libraries from the host (OpenGL/EGL, X11, fontconfig, fribidi, libpipewire), which every desktop install already has. It runs on Fedora 44 and openSUSE Tumbleweed (tested in CI) and other distributions with glibc at least as new as Fedora 44's.
+* H.264 is available on Windows (x264). The Linux AppImage offers VP8/VP9/MPEG-4 and Opus; it intentionally does not bundle Cisco's OpenH264 binary.
