@@ -62,7 +62,16 @@ jobs:
           - { arch: aarch64, runner: ubuntu-24.04-arm, image: "fedora:44" }
     runs-on: ${{ matrix.runner }}
     container: ${{ matrix.image }}
+    defaults:
+      run:
+        shell: bash
     steps:
+      - name: Install bash and tar (minimal images)
+        shell: sh
+        run: command -v dnf >/dev/null && dnf -y install bash tar gzip || zypper -n install bash tar gzip
+      - uses: actions/checkout@v5   # CI helper scripts only
+        with:
+          path: src
       - uses: actions/download-artifact@v4
         with:
           name: appimage-${{ matrix.arch }}
@@ -78,16 +87,24 @@ jobs:
           fi
       - name: Verify Qt and FFmpeg are NOT installed on the host
         run: |
-          ! ldconfig -p | grep -E 'libQt6Core|libavcodec'
+          found="$( (/sbin/ldconfig -p 2>/dev/null || ldconfig -p) | grep -E 'libQt6Core|libavcodec' || true)"
+          if [ -n "$found" ]; then
+            owners="$(echo "$found" | awk '{print $NF}' | xargs rpm -qf 2>/dev/null | sort -u | tr '\n' ' ')"
+            echo "::error title=Host is not clean::$(echo "$found" | head -5 | tr '\n' ' ') -- from packages: $owners"
+            exit 1
+          fi
       - name: Self-test from the AppImage
         run: |
           chmod +x BadConnectionStudio-*.AppImage
-          QT_QPA_PLATFORM=offscreen ./BadConnectionStudio-*.AppImage --appimage-extract-and-run --self-test | tee self-test.txt
+          export QT_QPA_PLATFORM=offscreen
+          # (bash steps run with pipefail, so a failure still fails the step)
+          src/scripts/ci-step.sh "AppImage self-test" ./BadConnectionStudio-*.AppImage --appimage-extract-and-run --self-test | tee self-test.txt
           grep -q "Result: PASS" self-test.txt
           grep -q "v4l2loopback" self-test.txt   # missing driver is explained, not a crash
       - name: GUI smoke test (offscreen, generated test pattern)
         run: |
-          QT_QPA_PLATFORM=offscreen timeout 60 ./BadConnectionStudio-*.AppImage --appimage-extract-and-run --screenshot gui.png
+          export QT_QPA_PLATFORM=offscreen
+          src/scripts/ci-step.sh "GUI smoke test" timeout 60 ./BadConnectionStudio-*.AppImage --appimage-extract-and-run --screenshot gui.png
           test -s gui.png
       - uses: actions/upload-artifact@v4
         with:
