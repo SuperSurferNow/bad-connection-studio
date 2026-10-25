@@ -1,6 +1,9 @@
 name: Release
 
-# Push a tag like v0.1.0 to build every package and publish a GitHub Release.
+# Builds every package and attaches it to a GitHub Release. Start it either by
+#  - pushing a tag:   git tag v0.1.0 && git push origin v0.1.0
+#  - or on github.com: Releases > Draft a new release > new tag v0.1.0 > Publish
+#    (the binaries are attached to that release when the builds finish).
 on:
   push:
     tags: ["v*"]
@@ -34,10 +37,18 @@ jobs:
           fi
           (cd assets && sha256sum * > SHA256SUMS.txt)
           ls -la assets
-      - name: Create release
+      - name: Create release (or add assets to the one created on github.com)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" assets/* \
-            --title "Bad Connection Studio $GITHUB_REF_NAME" \
-            --notes-file packaging/RELEASE_NOTES.md
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" assets/* --clobber
+            # Keep a description the author wrote; fill it only if empty.
+            if [ -z "$(gh release view "$GITHUB_REF_NAME" --json body --jq .body)" ]; then
+              gh release edit "$GITHUB_REF_NAME" --notes-file packaging/RELEASE_NOTES.md
+            fi
+          else
+            gh release create "$GITHUB_REF_NAME" assets/* \
+              --title "Bad Connection Studio $GITHUB_REF_NAME" \
+              --notes-file packaging/RELEASE_NOTES.md
+          fi
