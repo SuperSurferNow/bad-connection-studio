@@ -68,10 +68,14 @@ export LINUXDEPLOY_OUTPUT_VERSION="$VERSION"
 # which this app never opens. linuxdeploy excludes it by default (a JACK
 # client must match the host server), but without it the binary does not
 # load on hosts that lack JACK, so bundle it explicitly.
+# Fedora ships PipeWire's libjack in a private directory registered with
+# ld.so.conf (/usr/lib64/pipewire-0.3/jack), so ask the loader cache.
 EXTRA_LIBS=()
-for lib in /usr/lib64/libjack.so.0 /usr/lib/*-linux-gnu/libjack.so.0; do
-    if [ -e "$lib" ]; then EXTRA_LIBS+=(--library "$(realpath "$lib")"); fi
-done
+JACK_LIB="$(/sbin/ldconfig -p | awk '$1 == "libjack.so.0" {print $NF; exit}' || true)"
+if [ -n "$JACK_LIB" ]; then
+    EXTRA_LIBS+=(--library "$(realpath "$JACK_LIB")")
+    echo "bundling $JACK_LIB"
+fi
 linuxdeploy --appdir "$APPDIR" \
     --exclude-library 'libpipewire-0.3.so*' \
     "${EXTRA_LIBS[@]}" \
