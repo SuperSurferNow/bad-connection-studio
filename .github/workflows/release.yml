@@ -1,0 +1,43 @@
+name: Release
+
+# Push a tag like v0.1.0 to build every package and publish a GitHub Release.
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  linux:
+    uses: ./.github/workflows/linux.yml
+  windows:
+    uses: ./.github/workflows/windows.yml
+    secrets: inherit
+
+  publish:
+    needs: [linux, windows]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Collect release assets
+        run: |
+          mkdir -p assets
+          find artifacts/appimage-* -type f -exec cp {} assets/ \;
+          cp artifacts/windows-installer/build/BadConnectionStudio-*-setup.exe assets/
+          cp artifacts/windows-installer/stage/share/doc/BadConnectionStudio/LICENSE-REPORT.txt \
+             assets/BadConnectionStudio-windows-x64.LICENSE-REPORT.txt
+          if [ -d artifacts/windows-virtual-camera-component ]; then
+            cp artifacts/windows-virtual-camera-component/*.exe assets/
+          fi
+          (cd assets && sha256sum * > SHA256SUMS.txt)
+          ls -la assets
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" assets/* \
+            --title "Bad Connection Studio $GITHUB_REF_NAME" \
+            --notes-file packaging/RELEASE_NOTES.md

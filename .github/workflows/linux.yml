@@ -5,6 +5,7 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  workflow_call: # used by release.yml
 
 jobs:
   build:
@@ -19,25 +20,28 @@ jobs:
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
     container: fedora:44
+    defaults:
+      run:
+        shell: bash
     steps:
       - name: Install build dependencies
         run: |
-          dnf -y install git cmake ninja-build gcc-c++ pkgconf-pkg-config \
+          dnf -y install bash git cmake ninja-build gcc-c++ pkgconf-pkg-config \
             qt6-qtbase-devel qt6-qtmultimedia-devel qt6-qtwayland-devel qt6-qtbase-private-devel \
             libavcodec-free-devel libavformat-free-devel libavdevice-free-devel \
             libavutil-free-devel libswscale-free-devel libswresample-free-devel \
             pipewire-devel file curl findutils binutils patchelf desktop-file-utils rpm
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Configure
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
+        run: scripts/ci-step.sh Configure cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
       - name: Build
-        run: cmake --build build
+        run: scripts/ci-step.sh Build cmake --build build
       - name: Unit and codec round-trip tests
-        run: ctest --test-dir build --output-on-failure
+        run: scripts/ci-step.sh Tests ctest --test-dir build --output-on-failure
       - name: Self-test (build tree)
-        run: QT_QPA_PLATFORM=offscreen build/src/bad-connection-studio --self-test
+        run: QT_QPA_PLATFORM=offscreen scripts/ci-step.sh Self-test build/src/bad-connection-studio --self-test
       - name: Build AppImage
-        run: packaging/linux/build-appimage.sh dist
+        run: scripts/ci-step.sh AppImage packaging/linux/build-appimage.sh dist
       - uses: actions/upload-artifact@v4
         with:
           name: appimage-${{ matrix.arch }}
