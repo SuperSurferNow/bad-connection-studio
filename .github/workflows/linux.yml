@@ -140,15 +140,19 @@ jobs:
           src/scripts/ci-step.sh "AppImage self-test" ./BadConnectionStudio-*.AppImage --appimage-extract-and-run --self-test | tee self-test.txt
           grep -q "Result: PASS" self-test.txt
           grep -q "v4l2loopback" self-test.txt   # missing driver is explained, not a crash
-      - name: Diagnose a failed self-test (strace)
+      - name: Diagnose a failed self-test (gdb backtrace)
         if: failure()
         run: |
-          (command -v dnf >/dev/null && dnf -y install strace) || zypper -n install strace
+          (command -v dnf >/dev/null && dnf -y install gdb) || zypper -n install gdb
+          ./BadConnectionStudio-*.AppImage --appimage-extract >/dev/null
           export QT_QPA_PLATFORM=offscreen
-          strace -f -tt -e trace=process,execve -o trace.txt ./BadConnectionStudio-*.AppImage --appimage-extract-and-run --self-test > /dev/null 2>&1 || true
+          gdb -batch -ex run -ex bt -ex 'info sharedlibrary' --args squashfs-root/usr/bin/bad-connection-studio --self-test > gdb.txt 2>&1 || true
           msg=""
-          while IFS= read -r line; do msg+="${line:0:220}%0A"; done < <(grep -E 'execve|exit|fork|clone|kill|SIG' trace.txt | tail -n 30)
-          echo "::error title=strace (process events)::${msg}"
+          while IFS= read -r line; do msg+="${line:0:220}%0A"; done < <(grep -E '^#[0-9]+ |SIGSEGV|signal' gdb.txt | head -n 30)
+          echo "::error title=gdb backtrace::${msg}"
+          msg=""
+          while IFS= read -r line; do msg+="${line:0:160}%0A"; done < <(grep -E 'Multimedia|ffmpeg|pipewire|pulse|spa' gdb.txt | head -n 25)
+          echo "::error title=gdb libraries::${msg}"
       - name: GUI smoke test (offscreen, generated test pattern)
         run: |
           export QT_QPA_PLATFORM=offscreen
