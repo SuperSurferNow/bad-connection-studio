@@ -29,4 +29,4 @@ Without these the app still runs, shows the degraded video preview and meters th
 * Windows: the installer is **unsigned** unless a certificate was configured, so SmartScreen may warn ("More info ▸ Run anyway").
 * Licensing: the source code is MIT. Both packages bundle a GPL-licensed FFmpeg build (Fedora's on Linux, MSYS2's on Windows), so the binary packages as a whole are distributed under GPL terms; see `docs/LICENSES.md`.
 * The AppImage needs a few standard desktop libraries from the host (OpenGL/EGL, X11, fontconfig, fribidi, libpipewire), which every desktop install already has. It runs on Fedora 44 and openSUSE Tumbleweed (tested in CI) and other distributions with glibc at least as new as Fedora 44's.
-* H.264 is available on Windows (x264). The Linux AppImage offers VP8/VP9/MPEG-4 and Opus; it intentionally does not bundle Cisco's OpenH264 binary.
+* H.264 is available on Windows (x264). The Linux AppImage offers VP8/VP9 and Opus (plus any other encoders Fedora's FFmpeg provides); it intentionally does not bundle Cisco's OpenH264 binary.
