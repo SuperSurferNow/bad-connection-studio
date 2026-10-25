@@ -53,6 +53,10 @@ done
 export EXTRA_PLATFORM_PLUGINS
 echo "platform plugins: $EXTRA_PLATFORM_PLUGINS"
 export DEPLOY_PLATFORM_THEMES=1
+# linuxdeploy's bundled strip predates the RELR relocation sections that
+# current toolchains emit (Fedora 44) and fails on them. Distribution
+# libraries are already stripped, so skip it.
+export NO_STRIP=1
 
 VERSION="$(grep -m1 -oE '^ +VERSION [0-9.]+' "$SRC_DIR/CMakeLists.txt" | awk '{print $2}')"
 export LINUXDEPLOY_OUTPUT_VERSION="$VERSION"
