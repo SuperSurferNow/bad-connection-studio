@@ -77,7 +77,9 @@ if find "$APPDIR" -name 'libpipewire-0.3.so*' | grep -q .; then
 fi
 
 # Dependency / license report, inside the AppImage and next to it.
+echo "Generating license report..."
 "$SRC_DIR/scripts/license-report-linux.sh" "$APPDIR" > "$WORK/LICENSE-REPORT.txt"
+tail -n 5 "$WORK/LICENSE-REPORT.txt"
 install -Dm644 "$WORK/LICENSE-REPORT.txt" "$APPDIR/usr/share/doc/BadConnectionStudio/LICENSE-REPORT.txt"
 if grep -q "unredistributable" "$WORK/LICENSE-REPORT.txt"; then
     echo "error: the FFmpeg build is 'nonfree and unredistributable'; refusing to package" >&2
