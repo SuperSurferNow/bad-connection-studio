@@ -64,24 +64,29 @@ export LINUXDEPLOY_OUTPUT_VERSION="$VERSION"
 # libpipewire must come from the host: Qt >= 6.10 Multimedia links it, and a
 # bundled copy would load the host's PipeWire modules with a mismatched
 # library. Every distribution this AppImage targets ships it.
-# libjack: linked by the distribution's libavdevice for its JACK input,
-# which this app never opens. linuxdeploy excludes it by default (a JACK
-# client must match the host server), but without it the binary does not
-# load on hosts that lack JACK, so bundle it explicitly.
-# Fedora ships PipeWire's libjack in a private directory registered with
-# ld.so.conf (/usr/lib64/pipewire-0.3/jack), so ask the loader cache.
-EXTRA_LIBS=()
-JACK_LIB="$(/sbin/ldconfig -p | awk '$1 == "libjack.so.0" {print $NF; exit}' || true)"
-if [ -n "$JACK_LIB" ]; then
-    EXTRA_LIBS+=(--library "$(realpath "$JACK_LIB")")
-    echo "bundling $JACK_LIB"
-fi
 linuxdeploy --appdir "$APPDIR" \
     --exclude-library 'libpipewire-0.3.so*' \
-    "${EXTRA_LIBS[@]}" \
     --desktop-file "$APPDIR/usr/share/applications/bad-connection-studio.desktop" \
     --icon-file "$APPDIR/usr/share/icons/hicolor/scalable/apps/bad-connection-studio.svg" \
     --plugin qt
+
+# libjack: linked by the distribution's libavdevice for its JACK input,
+# which this app never opens. linuxdeploy's excludelist skips it (a JACK
+# client must normally match the host server), but without it the binary
+# does not even load on hosts without JACK, so copy it in ourselves. Fedora
+# keeps PipeWire's libjack in a private directory (/usr/lib64/pipewire-0.3/jack).
+if [ ! -e "$APPDIR/usr/lib/libjack.so.0" ]; then
+    JACK_LIB="$( (ldconfig -p 2>/dev/null || /usr/sbin/ldconfig -p) | awk '$1 == "libjack.so.0" {print $NF; exit}' || true)"
+    if [ -z "$JACK_LIB" ]; then
+        JACK_LIB="$(find /usr/lib64 /usr/lib -name libjack.so.0 2>/dev/null | head -n1 || true)"
+    fi
+    if [ -n "$JACK_LIB" ]; then
+        cp -L "$JACK_LIB" "$APPDIR/usr/lib/libjack.so.0"
+        echo "::notice title=AppImage::bundled libjack from $JACK_LIB"
+    else
+        echo "::warning title=AppImage::libjack.so.0 not found on the build host"
+    fi
+fi
 
 # Never ship a PipeWire client library (see PipeWireApi.h).
 if find "$APPDIR" -name 'libpipewire-0.3.so*' | grep -q .; then
