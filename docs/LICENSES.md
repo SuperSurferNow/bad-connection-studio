@@ -54,9 +54,12 @@ For an LGPL Windows build, replace the MSYS2 FFmpeg with a custom build such
 as `vcpkg install ffmpeg[avcodec,avformat,avdevice,swscale,swresample,opus,vpx]`
 without the `gpl` feature, and point `PKG_CONFIG_PATH` at it.
 
-**Project license:** the project owner must choose one before publishing.
-If release builds bundle a GPL FFmpeg (as the default Windows build does), it
-must be GPL-compatible; GPL-3.0-or-later avoids any ambiguity.
+**Project license:** Bad Connection Studio's own source code is MIT-licensed
+(see `LICENSE`). MIT is GPL-compatible. When a package bundles a GPL FFmpeg
+build (as the default Windows build does), that **binary package as a whole**
+must be distributed under the GPL's terms, including corresponding source for
+the GPL components. An LGPL FFmpeg build (the Fedora-based AppImage) has no
+such requirement beyond the LGPL obligations listed above.
 
 ## Codec patents
 

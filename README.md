@@ -112,7 +112,8 @@ failure handling.
 
 ## Licensing
 
-See [docs/LICENSES.md](docs/LICENSES.md). Each package includes a generated
-`LICENSE-REPORT.txt`. Whether a build is LGPL or GPL depends on the bundled
-FFmpeg's configuration. The project owner still needs to choose the
-project's own license.
+The source code is MIT-licensed (see [LICENSE](LICENSE)). Bundled
+third-party components keep their own licenses; see
+[docs/LICENSES.md](docs/LICENSES.md). Each package includes a generated
+`LICENSE-REPORT.txt`. Whether a binary package as a whole is LGPL or GPL
+depends on the bundled FFmpeg's configuration.
