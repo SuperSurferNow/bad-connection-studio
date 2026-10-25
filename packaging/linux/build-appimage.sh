@@ -64,8 +64,17 @@ export LINUXDEPLOY_OUTPUT_VERSION="$VERSION"
 # libpipewire must come from the host: Qt >= 6.10 Multimedia links it, and a
 # bundled copy would load the host's PipeWire modules with a mismatched
 # library. Every distribution this AppImage targets ships it.
+# libjack: linked by the distribution's libavdevice for its JACK input,
+# which this app never opens. linuxdeploy excludes it by default (a JACK
+# client must match the host server), but without it the binary does not
+# load on hosts that lack JACK, so bundle it explicitly.
+EXTRA_LIBS=()
+for lib in /usr/lib64/libjack.so.0 /usr/lib/*-linux-gnu/libjack.so.0; do
+    if [ -e "$lib" ]; then EXTRA_LIBS+=(--library "$(realpath "$lib")"); fi
+done
 linuxdeploy --appdir "$APPDIR" \
     --exclude-library 'libpipewire-0.3.so*' \
+    "${EXTRA_LIBS[@]}" \
     --desktop-file "$APPDIR/usr/share/applications/bad-connection-studio.desktop" \
     --icon-file "$APPDIR/usr/share/icons/hicolor/scalable/apps/bad-connection-studio.svg" \
     --plugin qt
