@@ -18,7 +18,7 @@ license it was built against at runtime (Help ▸ About and `--self-test`).
 | libopus | BSD-3-Clause | Preferred speech codec |
 | libspeex | BSD-3-Clause | Optional |
 | libx264 | **GPL-2.0+** | Optional; its presence makes the FFmpeg build GPL |
-| OpenH264 | BSD-2-Clause | Patent coverage only applies to Cisco's prebuilt binary, which must be downloaded by the user, not bundled |
+| OpenH264 | BSD-2-Clause | Cisco's patent coverage only applies to Cisco's own binary downloaded by the user. The AppImage is built against Fedora's `noopenh264` stub, so the H.264 (OpenH264) codec shows as unavailable in it |
 | libpulse (pulled in by Qt Multimedia on Linux) | LGPL-2.1+ | |
 | libfdk-aac (Fedora's `fdk-aac-free`, pulled in by Fedora's FFmpeg) | FDK-AAC license (Fedora-approved free subset) | Check `LICENSE-REPORT.txt`; packaging refuses FFmpeg builds marked non-redistributable |
 | Other FFmpeg dependencies (dav1d, aom, SVT-AV1, libsmbclient, ...) | Various free licenses | Pulled in by the distribution FFmpeg; all listed in `LICENSE-REPORT.txt` |

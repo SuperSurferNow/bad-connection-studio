@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -39,6 +40,7 @@ struct SelfTestResult {
 // Runs codec round-trips, verifies quality rises with bitrate while the
 // resolution stays fixed, and appends the virtual-device capability check
 // (missing OS components are reported, not treated as failures).
-SelfTestResult runSelfTest();
+// `emit` (optional) receives the report incrementally as sections finish.
+SelfTestResult runSelfTest(const std::function<void(const std::string&)>& emit = {});
 
 } // namespace bcs

@@ -174,10 +174,21 @@ std::vector<AudioRoundTripPoint> measureAudioRoundTrip(const std::string& encode
     return out;
 }
 
-SelfTestResult runSelfTest()
+SelfTestResult runSelfTest(const std::function<void(const std::string&)>& emit)
 {
     SelfTestResult res;
     std::ostringstream r;
+    std::size_t emitted = 0;
+    // Stream finished sections immediately, so a crash in a later stage
+    // (e.g. a host library during backend probing) still shows how far it got.
+    auto flush = [&] {
+        if (!emit)
+            return;
+        const std::string all = r.str();
+        if (all.size() > emitted)
+            emit(all.substr(emitted));
+        emitted = all.size();
+    };
     bool ok = true;
     auto check = [&](bool cond, const std::string& what) {
         r << (cond ? "  PASS  " : "  FAIL  ") << what << "\n";
@@ -187,6 +198,7 @@ SelfTestResult runSelfTest()
     const FfmpegBuildInfo ff = ffmpegBuildInfo();
     r << "Bad Connection Studio " << BCS_VERSION << " self-test\n";
     r << "FFmpeg libavcodec " << ff.avcodecVersion << ", license: " << ff.license << "\n\n";
+    flush();
 
     // ---- video
     std::string venc;
@@ -210,6 +222,7 @@ SelfTestResult runSelfTest()
         check(pts.size() == 3 && pts[2].psnrDb > pts[0].psnrDb + 3.0, "quality (PSNR) rises clearly with bitrate");
         check(pts.size() == 3 && pts[0].actualKbps < pts[2].actualKbps, "encoded bitrate follows the target");
     }
+    flush();
 
     // ---- audio
     std::string aenc;
@@ -231,17 +244,31 @@ SelfTestResult runSelfTest()
               "audio fidelity rises with bitrate (spectral distance falls)");
         check(pts.size() == 3 && pts[0].actualKbps < pts[2].actualKbps, "audio bitrate follows the target");
     }
+    flush();
 
     // ---- OS integration (informational)
     r << "\nVirtual device backends (OS components are external; not a failure if missing):\n";
-    CapabilityReport cap = probeBackends({});
-    r << "  platform: " << cap.platform << "\n";
-    for (const auto& s : cap.cameras)
-        r << "  camera  " << (s.available ? "[ready]   " : "[missing] ") << s.displayName << ": " << s.summary << "\n";
-    for (const auto& s : cap.mics)
-        r << "  mic     " << (s.available ? "[ready]   " : "[missing] ") << s.displayName << ": " << s.summary << "\n";
+    r << "  platform: " << probeBackends({}).platform << "\n";
+    flush();
+    // Probe one backend at a time (they load host libraries) so a failure
+    // is attributable.
+    for (const auto& id : cameraBackendIds()) {
+        if (auto b = createCameraBackend(id, {})) {
+            BackendStatus s = b->probe();
+            r << "  camera  " << (s.available ? "[ready]   " : "[missing] ") << s.displayName << ": " << s.summary << "\n";
+            flush();
+        }
+    }
+    for (const auto& id : micBackendIds()) {
+        if (auto b = createMicBackend(id, {})) {
+            BackendStatus s = b->probe();
+            r << "  mic     " << (s.available ? "[ready]   " : "[missing] ") << s.displayName << ": " << s.summary << "\n";
+            flush();
+        }
+    }
 
     r << "\nResult: " << (ok ? "PASS" : "FAIL") << "\n";
+    flush();
     res.passed = ok;
     res.report = r.str();
     return res;

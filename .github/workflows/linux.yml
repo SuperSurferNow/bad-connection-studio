@@ -26,7 +26,10 @@ jobs:
     steps:
       - name: Install build dependencies
         run: |
-          dnf -y install bash git cmake ninja-build gcc-c++ pkgconf-pkg-config \
+          # Never bundle Cisco's OpenH264 binary (its patent grant only covers
+          # copies users download from Cisco): build against the noopenh264 stub.
+          dnf -y install --disablerepo='fedora-cisco-openh264*' noopenh264
+          dnf -y install --disablerepo='fedora-cisco-openh264*' bash git cmake ninja-build gcc-c++ pkgconf-pkg-config \
             qt6-qtbase-devel qt6-qtmultimedia-devel qt6-qtwayland-devel qt6-qtbase-private-devel \
             libavcodec-free-devel libavformat-free-devel libavdevice-free-devel \
             libavutil-free-devel libswscale-free-devel libswresample-free-devel \

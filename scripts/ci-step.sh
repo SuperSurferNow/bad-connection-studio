@@ -10,8 +10,14 @@ log="$(mktemp)"
 rc=${PIPESTATUS[0]}
 if [ "$rc" -ne 0 ]; then
     # Annotations are capped at ~4 KB: keep the last lines, each shortened.
-    tail -n 40 "$log" | cut -c1-200 | sed 's/%/%25/g; s/\r//g' | awk 'BEGIN{ORS="%0A"} {print}' > "$log.tail"
-    echo "::error title=${title} (exit ${rc})::$(cat "$log.tail")"
+    # Pure bash/coreutils (minimal container images may lack awk).
+    msg=""
+    while IFS= read -r line; do
+        line="${line//$'\r'/}"
+        line="${line//%/%25}"
+        msg+="${line:0:200}%0A"
+    done < <(tail -n 40 "$log")
+    echo "::error title=${title} (exit ${rc})::${msg}"
 fi
-rm -f "$log" "$log.tail"
+rm -f "$log"
 exit "$rc"

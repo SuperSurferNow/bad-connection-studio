@@ -96,9 +96,10 @@ int main(int argc, char** argv)
         if ((out == nullptr || out == INVALID_HANDLE_VALUE) && AttachConsole(ATTACH_PARENT_PROCESS))
             std::freopen("CONOUT$", "w", stdout);
 #endif
-        bcs::SelfTestResult r = bcs::runSelfTest();
-        std::fputs(r.report.c_str(), stdout);
-        std::fflush(stdout);
+        bcs::SelfTestResult r = bcs::runSelfTest([](const std::string& chunk) {
+            std::fputs(chunk.c_str(), stdout);
+            std::fflush(stdout);
+        });
         return r.passed ? 0 : 1;
     }
 
