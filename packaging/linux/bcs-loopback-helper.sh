@@ -107,6 +107,15 @@ main() {
             ;;
         load-module)
             step "Loading v4l2loopback"
+            # Distribution packages (e.g. RPM Fusion's, labelled "OBS Virtual
+            # Camera") may load the module right after the build with their
+            # own options. Reload with ours unless something is using it.
+            if [ -d /sys/module/v4l2loopback ] \
+               && ! grep -qx "Bad Connection Camera" /sys/devices/virtual/video4linux/video*/name 2>/dev/null \
+               && [ "$(cat /sys/module/v4l2loopback/refcnt 2>/dev/null || echo 1)" = 0 ]; then
+                echo "loaded with other options and unused: reloading"
+                modprobe -r v4l2loopback || true
+            fi
             if [ -d /sys/module/v4l2loopback ]; then
                 echo "already loaded"
             else
