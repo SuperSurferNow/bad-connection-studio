@@ -4,11 +4,19 @@ Bad Connection Studio ships as an **AppImage** per architecture
 (`x86_64`, `aarch64`). The AppImage bundles the application, Qt 6 (with its
 platform and multimedia plugins), FFmpeg and the codec libraries.
 
-> **The AppImage does not include or install kernel modules, PipeWire,
-> system services, udev rules or drivers.** It never runs `sudo` and never
-> changes kernel state. The virtual camera and microphone rely on OS
+> **The AppImage does not include kernel modules, PipeWire, system services,
+> udev rules or drivers.** The virtual camera and microphone rely on OS
 > components described below. Help ▸ *Diagnostics and setup* shows what is
 > present and what is missing on your machine, with these same instructions.
+>
+> **Guided virtual camera setup.** When v4l2loopback is missing, the app
+> offers to set it up (also under Help ▸ *Set up virtual camera*). It detects
+> your distribution (Fedora, Fedora Atomic / Bazzite, Arch, Debian/Ubuntu,
+> openSUSE), your kernel and Secure Boot, shows every command first, and runs
+> nothing until you click **Run**. Your password is asked by the system
+> (polkit); only the listed steps run as root, in an isolated `systemd-run`
+> service with no access to your home folder. The app itself never runs as
+> root. `--loopback-plan` prints what it would do without changing anything.
 
 | Feature | OS component | Bundled? | Needed for |
 |---|---|---|---|
@@ -63,6 +71,23 @@ echo v4l2loopback | sudo tee /etc/modules-load.d/v4l2loopback.conf
 echo 'options v4l2loopback devices=1 video_nr=10 card_label="Bad Connection Camera" exclusive_caps=1' \
   | sudo tee /etc/modprobe.d/v4l2loopback.conf
 ```
+
+**Kernel updates.** The module is built for the *running* kernel. If you
+updated your kernel and have not restarted, restart first: the headers of the
+old kernel are often no longer downloadable, and on Arch the old kernel's
+modules are deleted by the update, so nothing can be loaded until you
+restart. The guided setup checks this before asking for your password. A
+brand-new kernel can be ahead of the packaged module; if the build fails,
+the setup window shows the end of the build log. Use your distribution's LTS
+kernel or wait for a package update.
+
+**Other distributions.** Arch: `sudo pacman -S v4l2loopback-dkms linux-headers`
+(match `linux-lts-headers` / `linux-zen-headers` to your kernel).
+Debian/Ubuntu: `sudo apt install v4l2loopback-dkms linux-headers-$(uname -r)`.
+openSUSE: `sudo zypper install v4l2loopback-kmp-default`. Fedora Atomic
+(Silverblue, Kinoite): `rpm-ostree install` the RPM Fusion release package and
+`akmod-v4l2loopback`, then restart. Bazzite and other Universal Blue images
+already ship the module; only the `modprobe` line is needed.
 
 **Secure Boot.** With Secure Boot enabled, modules built by akmods must be
 signed with a key enrolled in the firmware, otherwise `modprobe` fails with

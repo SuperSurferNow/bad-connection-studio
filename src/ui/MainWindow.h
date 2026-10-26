@@ -87,6 +87,8 @@ private:
     void onSleep();
     void onResume();
     void showDiagnostics();
+    void showLoopbackSetup();
+    bool offerLoopbackSetup(); // true if a setup popup was scheduled
     void showAbout();
 
     // feedback

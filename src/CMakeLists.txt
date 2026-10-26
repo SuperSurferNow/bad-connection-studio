@@ -34,7 +34,8 @@ endif()
 if(BCS_LINUX)
     target_sources(bcs_core PRIVATE
         backend/linux/V4L2Devices.h backend/linux/V4L2Devices.cpp
-        backend/linux/V4L2LoopbackCamera.h backend/linux/V4L2LoopbackCamera.cpp)
+        backend/linux/V4L2LoopbackCamera.h backend/linux/V4L2LoopbackCamera.cpp
+        backend/linux/LoopbackSetup.h backend/linux/LoopbackSetup.cpp)
     target_compile_definitions(bcs_core PUBLIC BCS_PLATFORM_LINUX=1)
     if(BCS_WITH_PIPEWIRE)
         target_sources(bcs_core PRIVATE
@@ -77,6 +78,14 @@ if(TARGET Qt6::DBus)
 endif()
 if(BCS_WINDOWS)
     target_sources(bad-connection-studio PRIVATE ${PROJECT_SOURCE_DIR}/packaging/windows/app.rc)
+endif()
+if(BCS_LINUX)
+    target_sources(bad-connection-studio PRIVATE ui/LoopbackSetupDialog.h ui/LoopbackSetupDialog.cpp)
+    # The root helper is embedded and piped to pkexec; never installed as a file.
+    qt_add_resources(bad-connection-studio "linux_helper"
+        PREFIX "/linux"
+        BASE ${PROJECT_SOURCE_DIR}/packaging/linux
+        FILES ${PROJECT_SOURCE_DIR}/packaging/linux/bcs-loopback-helper.sh)
 endif()
 
 if(BCS_WINDOWS)

@@ -8,7 +8,8 @@
 namespace bcs {
 
 // Writes frames to a v4l2loopback output device. The kernel module is an
-// external OS component; this class only detects it and explains setup.
+// external OS component; this class only detects it and explains setup
+// (installing it is LoopbackSetupDialog's job, on the user's request).
 class V4L2LoopbackCamera final : public VirtualCameraBackend {
 public:
     enum class PixelFormat { YUV420, YUYV };

@@ -1,6 +1,10 @@
 #include "app/Logging.h"
 #include "core/SelfTest.h"
 #include "ui/MainWindow.h"
+#if defined(BCS_PLATFORM_LINUX)
+#include "backend/linux/LoopbackSetup.h"
+#include "backend/linux/V4L2Devices.h"
+#endif
 
 extern "C" {
 #include <libavdevice/avdevice.h>
@@ -62,13 +66,13 @@ int main(int argc, char** argv)
     QCoreApplication::setApplicationName("BadConnectionStudio");
     QCoreApplication::setApplicationVersion(BCS_VERSION);
 
-    // --self-test runs headless (CI on clean machines), without a display.
-    bool selfTest = false;
+    // --self-test and --loopback-plan run headless (CI on clean machines), without a display.
+    bool headless = false;
     for (int i = 1; i < argc; ++i)
-        selfTest |= std::strcmp(argv[i], "--self-test") == 0;
+        headless |= std::strcmp(argv[i], "--self-test") == 0 || std::strcmp(argv[i], "--loopback-plan") == 0;
 
     std::unique_ptr<QCoreApplication> app;
-    if (selfTest)
+    if (headless)
         app = std::make_unique<QCoreApplication>(argc, argv);
     else
         app = std::make_unique<QApplication>(argc, argv);
@@ -79,6 +83,8 @@ int main(int argc, char** argv)
     parser.addHelpOption();
     parser.addVersionOption();
     parser.addOption({"self-test", "Run codec round-trip and capability checks, print a report, and exit."});
+    parser.addOption({"loopback-plan", "Linux: print the detected distribution, kernel and virtual camera setup "
+                                       "plan (read-only), and exit."});
     QCommandLineOption screenshot("screenshot", "Run the test pattern and save a PNG of the window (docs/CI).", "file");
     parser.addOption(screenshot);
     parser.process(*app);
@@ -88,7 +94,21 @@ int main(int argc, char** argv)
     installSignalHandlers(app.get());
     qInfo() << "Bad Connection Studio" << BCS_VERSION << "starting";
 
-    if (selfTest) {
+    if (parser.isSet("loopback-plan")) {
+#if defined(BCS_PLATFORM_LINUX)
+        namespace lb = bcs::loopback;
+        const auto d = lb::detectDistro();
+        const auto k = lb::detectKernel();
+        const auto s = lb::evaluate(bcs::v4l2::loopbackModuleLoaded(), d, k);
+        std::fputs(lb::planReport(d, k, s, lb::buildPlan(d, k, s, true)).c_str(), stdout);
+        return 0;
+#else
+        std::fputs("--loopback-plan is only available on Linux\n", stderr);
+        return 2;
+#endif
+    }
+
+    if (parser.isSet("self-test")) {
 #if defined(_WIN32)
         // GUI-subsystem binary: when started from a console without
         // redirection, attach to it so the report is visible.

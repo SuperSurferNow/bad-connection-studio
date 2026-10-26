@@ -1,5 +1,6 @@
 #include "backend/linux/V4L2LoopbackCamera.h"
 
+#include "backend/linux/LoopbackSetup.h"
 #include "backend/linux/V4L2Devices.h"
 
 #include <linux/videodev2.h>
@@ -16,8 +17,10 @@ namespace bcs {
 std::string V4L2LoopbackCamera::setupHelpHtml()
 {
     return R"html(<p><b>v4l2loopback</b> is a Linux kernel module that creates virtual
-webcams. Bad Connection Studio does not install kernel modules or run
-<code>sudo</code>; run these commands yourself if you want a virtual camera.</p>
+webcams. Use <b>Help &gt; Set up virtual camera</b> to have Bad Connection
+Studio install and load it for your distribution: it shows every step first
+and asks for your password through the system's authentication dialog. Or run
+these commands yourself:</p>
 <p><b>Fedora 44</b> (the module is packaged in RPM Fusion "free"):</p>
 <pre>sudo dnf install https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm
 sudo dnf install akmod-v4l2loopback v4l2loopback
@@ -70,8 +73,12 @@ BackendStatus V4L2LoopbackCamera::probe()
     for (auto& d : st.devices)
         usable += d.usable;
     st.available = usable > 0;
-    if (!loaded)
-        st.summary = "v4l2loopback kernel module is not loaded — no virtual camera available";
+    if (!loaded) {
+        const auto d = loopback::detectDistro();
+        const auto k = loopback::detectKernel();
+        st.summary = "v4l2loopback is not loaded — no virtual camera available. " +
+                     loopback::describeState(loopback::evaluate(false, d, k), d, k);
+    }
     else if (st.devices.empty())
         st.summary = "v4l2loopback is loaded but created no devices";
     else if (!usable)

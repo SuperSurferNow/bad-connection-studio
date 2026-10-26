@@ -23,7 +23,7 @@ struct BackendStatus {
     std::string displayName; // "v4l2loopback (Linux kernel module)"
     bool available = false;  // at least one usable destination
     std::string summary;     // one line, shown in the status bar / diagnostics
-    std::string setupHelp;   // HTML: how to install / grant access (never auto-run)
+    std::string setupHelp;   // HTML: how to install / grant access (never run by the backend)
     std::vector<VirtualDeviceInfo> devices;
 };
 

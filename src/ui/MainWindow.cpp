@@ -7,6 +7,9 @@
 #include "core/VideoCapture.h"
 #include "ui/DiagnosticsDialog.h"
 #include "ui/LevelMeter.h"
+#if defined(BCS_PLATFORM_LINUX)
+#include "ui/LoopbackSetupDialog.h"
+#endif
 #include "ui/VideoPreview.h"
 
 #include <QApplication>
@@ -393,6 +396,9 @@ void MainWindow::buildMenus()
     file->addAction(tr("&Quit"), QKeySequence::Quit, this, &QWidget::close);
     auto* help = menuBar()->addMenu(tr("&Help"));
     help->addAction(tr("&Diagnostics and setup..."), this, &MainWindow::showDiagnostics);
+#if defined(BCS_PLATFORM_LINUX)
+    help->addAction(tr("Set up &virtual camera..."), this, &MainWindow::showLoopbackSetup);
+#endif
     help->addAction(tr("Open log folder"), this,
                     [] { QDesktopServices::openUrl(QUrl::fromLocalFile(logDirectory())); });
     help->addAction(tr("&About"), this, &MainWindow::showAbout);
@@ -668,9 +674,58 @@ void MainWindow::runStartupCheck()
         missing << tr("virtual microphone");
     if (!missing.isEmpty()) {
         statusBar()->showMessage(tr("Unavailable: %1 — see Help > Diagnostics").arg(missing.join(", ")), 15000);
+        if (offerLoopbackSetup())
+            return;
         if (!m_settings.skipStartupDiagnostics)
             QTimer::singleShot(300, this, &MainWindow::showDiagnostics);
     }
+}
+
+bool MainWindow::offerLoopbackSetup()
+{
+#if defined(BCS_PLATFORM_LINUX)
+    if (m_settings.skipLoopbackPrompt)
+        return false;
+    loopback::DistroInfo d;
+    loopback::KernelInfo k;
+    const loopback::State s = LoopbackSetupDialog::currentState(&d, &k);
+    if (s == loopback::State::Ready)
+        return false; // loaded: whatever is missing is not the driver
+    QTimer::singleShot(300, this, [this, s, d, k] {
+        QMessageBox box(this);
+        box.setIcon(QMessageBox::Information);
+        box.setWindowTitle(tr("Virtual camera not set up"));
+        box.setText(tr("<b>The virtual camera driver (v4l2loopback) is not ready.</b>"));
+        box.setInformativeText(QString::fromStdString(loopback::describeState(s, d, k)) + "\n\n" +
+                               tr("Bad Connection Studio can set it up for you. You will see every step before "
+                                  "anything runs, and your password is asked by the system, not by this app."));
+        auto* setup = box.addButton(s == loopback::State::NeedsReboot ? tr("Details...") : tr("Set up now..."),
+                                    QMessageBox::AcceptRole);
+        box.addButton(tr("Not now"), QMessageBox::RejectRole);
+        auto* never = box.addButton(tr("Don't ask again"), QMessageBox::DestructiveRole);
+        box.setDefaultButton(setup);
+        box.exec();
+        if (box.clickedButton() == setup) {
+            showLoopbackSetup();
+        } else if (box.clickedButton() == never) {
+            m_settings.skipLoopbackPrompt = true;
+            m_settings.save();
+            addMessage(tr("Virtual camera setup is still available under Help > Set up virtual camera."), false);
+        }
+    });
+    return true;
+#else
+    return false;
+#endif
+}
+
+void MainWindow::showLoopbackSetup()
+{
+#if defined(BCS_PLATFORM_LINUX)
+    LoopbackSetupDialog dlg(this);
+    dlg.exec();
+    refreshDestinations();
+#endif
 }
 
 // ------------------------------------------------------------------ config
@@ -958,6 +1013,9 @@ void MainWindow::onResume()
 void MainWindow::showDiagnostics()
 {
     DiagnosticsDialog dlg([this] { return probe(); }, m_settings.skipStartupDiagnostics, this);
+#if defined(BCS_PLATFORM_LINUX)
+    dlg.setSetupAction(tr("Set up virtual camera..."), [this] { showLoopbackSetup(); });
+#endif
     dlg.exec();
     m_settings.skipStartupDiagnostics = dlg.skipAtStartup();
     m_settings.save();

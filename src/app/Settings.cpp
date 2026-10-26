@@ -58,6 +58,7 @@ AppSettings AppSettings::load()
 
     a.autoReconnect = s.value("general/autoReconnect", true).toBool();
     a.skipStartupDiagnostics = s.value("general/skipStartupDiagnostics", false).toBool();
+    a.skipLoopbackPrompt = s.value("general/skipLoopbackPrompt", false).toBool();
     return a;
 }
 
@@ -93,6 +94,7 @@ void AppSettings::save() const
 
     s.setValue("general/autoReconnect", autoReconnect);
     s.setValue("general/skipStartupDiagnostics", skipStartupDiagnostics);
+    s.setValue("general/skipLoopbackPrompt", skipLoopbackPrompt);
 }
 
 } // namespace bcs

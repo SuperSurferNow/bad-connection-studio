@@ -26,6 +26,7 @@ struct AppSettings {
     AudioCodecConfig audio;
     bool autoReconnect = true;
     bool skipStartupDiagnostics = false;
+    bool skipLoopbackPrompt = false; // Linux: "Don't ask again" on the driver setup popup
 
     static AppSettings load();
     void save() const;

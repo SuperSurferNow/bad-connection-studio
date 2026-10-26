@@ -58,8 +58,9 @@ QString buildDiagnosticsHtml(const CapabilityReport& r)
 
     if (runningFromAppImage())
         h += "<p style='background:#fff4d6;color:#000;padding:6px'><b>AppImage:</b> this package bundles Qt, FFmpeg and "
-             "codec libraries only. It does <b>not</b> include or install kernel modules (v4l2loopback), PipeWire, "
-             "system services or drivers; those are OS-level prerequisites listed below.</p>";
+             "codec libraries only. It does <b>not</b> include kernel modules (v4l2loopback), PipeWire, system "
+             "services or drivers; those are OS-level prerequisites listed below. Use <b>Set up virtual "
+             "camera</b> to install v4l2loopback with your confirmation.</p>";
 #if defined(_WIN32)
     h += "<p style='background:#fff4d6;color:#000;padding:6px'>The installer bundles Qt and FFmpeg. Virtual camera and "
          "microphone components are <b>separate</b> installs (see below); they are never installed silently.</p>";
