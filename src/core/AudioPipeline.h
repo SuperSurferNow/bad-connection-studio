@@ -4,6 +4,7 @@
 #include "core/AudioCodecRoundTrip.h"
 #include "core/AudioSinkWorker.h"
 #include "core/Errors.h"
+#include "core/LoopClip.h"
 
 #include <QAudioDevice>
 #include <QObject>
@@ -75,6 +76,14 @@ public:
     // Called by the UI when QMediaDevices reports input changes.
     void onAudioInputsChanged();
 
+    // Record / loop (see LoopClip and VideoPipeline::setLoopClip). While
+    // recording, clean microphone audio (48 kHz s16) is copied into the clip.
+    // While looping, a timer on the audio thread feeds clip audio into the
+    // codec at the clip clock's pace; microphone input only drives the meter.
+    void setLoopClip(LoopClip* clip) { m_clip = clip; }
+    void setLooping(bool on);
+    bool isLooping() const { return m_looping.load(); }
+
 Q_SIGNALS:
     void problem(int kind, const QString& message, const QString& detail);
     void stateChanged(bcs::AudioPipeline::State state, const QString& detail);
@@ -86,6 +95,8 @@ private:
     void tryReconnect();
 
     AudioPipelineConfig m_cfg;
+    LoopClip* m_clip = nullptr;
+    std::atomic<bool> m_looping{false};
     QThread m_thread;
     AudioWorker* m_worker = nullptr; // lives in m_thread
     std::unique_ptr<VirtualMicBackend> m_vmic;
@@ -93,7 +104,7 @@ private:
     std::atomic<bool> m_monitorOn{false};
     QAudioDevice m_monitorDevice;
     std::atomic<bool> m_vmicOpen{false};
-    bool m_running = false;
+    std::atomic<bool> m_running{false}; // read by the loop timer on the audio thread
     State m_state = State::Stopped;
     QTimer m_reconnectTimer;
 

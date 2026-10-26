@@ -10,6 +10,7 @@ bcs_add_test(test_buffers)
 bcs_add_test(test_video_roundtrip)
 bcs_add_test(test_audio_roundtrip)
 bcs_add_test(test_video_pipeline)
+bcs_add_test(test_loop_clip)
 
 # Needs an audio server (PipeWire/PulseAudio/WASAPI); exits 77 = skipped otherwise.
 bcs_add_test(test_audio_pipeline)

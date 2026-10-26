@@ -5,6 +5,7 @@
 #include "core/CameraEnumerator.h"
 #include "core/Errors.h"
 #include "core/FfmpegUtil.h"
+#include "core/LoopClip.h"
 #include "core/VideoCapture.h"
 #include "core/VideoCodecRoundTrip.h"
 
@@ -77,6 +78,15 @@ public:
     VideoStats stats() const;
     void previewConsumed() { m_previewBusy = false; }
 
+    // Record / loop (see LoopClip). The clip is owned by the caller and must
+    // outlive the pipeline; set it once, before start(). While recording,
+    // clean camera frames are copied into the clip. While looping, clip
+    // frames replace the camera feed (the camera stays open, so going back
+    // to live is instant) and still go through the codec.
+    void setLoopClip(LoopClip* clip) { m_clip = clip; }
+    void setLooping(bool on) { m_looping = on; }
+    bool isLooping() const { return m_looping.load(); }
+
 Q_SIGNALS:
     void previewFrame(const QImage& image);
     void problem(int kind, const QString& message, const QString& detail);
@@ -98,6 +108,8 @@ private:
     FramePtr placeholderFrame(int w, int h);
 
     VideoPipelineConfig m_cfg;
+    LoopClip* m_clip = nullptr;
+    std::atomic<bool> m_looping{false};
     std::atomic<bool> m_running{false};
     std::atomic<State> m_state{State::Stopped};
     std::thread m_captureThread, m_codecThread, m_outputThread;

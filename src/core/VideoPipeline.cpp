@@ -160,7 +160,32 @@ void VideoPipeline::captureLoop()
 {
     VideoCapture cap;
     bool reportedWaiting = false;
+    int loopIndex = -1;
     while (m_running) {
+        if (m_looping && m_clip && m_clip->isReady() && m_clip->hasVideo()) {
+            // Keep draining the camera so no stale backlog builds up in the
+            // capture layer; a failing camera is simply closed until live.
+            if (cap.isOpen()) {
+                FramePtr discard;
+                MediaError err;
+                if (cap.read(discard, err) < 0) {
+                    cap.close();
+                    m_cameraConnected = false;
+                }
+            }
+            int idx = loopIndex;
+            FramePtr lf = m_clip->videoFrameAt(m_clip->positionUs(nowUs()), loopIndex, &idx);
+            if (!lf) {
+                std::this_thread::sleep_for(2ms);
+                continue;
+            }
+            loopIndex = idx;
+            ++m_captured;
+            m_droppedLate += m_rawQueue.push(TimedFrame{std::move(lf), nowUs()});
+            continue;
+        }
+        loopIndex = -1;
+
         if (!cap.isOpen()) {
             CameraDevice dev = m_cfg.camera;
             if (dev.format != "synthetic") {
@@ -222,6 +247,8 @@ void VideoPipeline::captureLoop()
             continue;
         }
         ++m_captured;
+        if (m_clip && m_clip->isRecording())
+            m_clip->addVideo(f.get());
         m_droppedLate += m_rawQueue.push(TimedFrame{std::move(f), nowUs()});
     }
     cap.close();

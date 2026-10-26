@@ -15,6 +15,7 @@ add_library(bcs_core STATIC
     core/CameraEnumerator.h core/CameraEnumerator.cpp
     core/SelfTest.h core/SelfTest.cpp
     core/SyntheticSource.h core/SyntheticSource.cpp
+    core/LoopClip.h core/LoopClip.cpp
     backend/VirtualCameraBackend.h
     backend/VirtualMicBackend.h
     backend/BackendRegistry.h backend/BackendRegistry.cpp

@@ -181,6 +181,82 @@ private:
         updateCodecStats();
     }
 
+public:
+    void setLooping(bool on)
+    {
+        if (!on) {
+            if (m_loopTimer)
+                m_loopTimer->stop();
+            return;
+        }
+        if (!m_loopTimer) {
+            m_loopTimer = new QTimer(this);
+            m_loopTimer->setTimerType(Qt::PreciseTimer);
+            m_loopTimer->setInterval(10);
+            connect(m_loopTimer, &QTimer::timeout, this, [this] { feedLoop(); });
+        }
+        m_loopSample = -1;
+        m_loopTimer->start();
+    }
+
+private:
+    // Clip audio for the time elapsed since the last tick, positioned by the
+    // shared clip clock (so it cannot drift from the looping video).
+    void feedLoop()
+    {
+        LoopClip* clip = m_p->m_clip;
+        if (!m_p->m_running || !clip || !clip->isReady() || !clip->hasAudio())
+            return;
+        const int64_t target = (nowUs() - clip->playbackStartUs()) * LoopClip::kAudioRate / 1'000'000;
+        if (m_loopSample < 0 || target < m_loopSample || target - m_loopSample > LoopClip::kAudioRate / 2)
+            m_loopSample = target - LoopClip::kAudioRate / 50; // (re)start 20 ms behind
+        const int64_t n = target - m_loopSample;
+        if (n <= 0)
+            return;
+        const int ch = clip->readAudio(m_loopSample, size_t(n), m_loopPcm);
+        m_loopSample = target;
+        if (!ch)
+            return;
+        applyPending();
+        m_out.clear();
+        if (auto e = m_codec.process(reinterpret_cast<const uint8_t*>(m_loopPcm.data()), int(n),
+                                     PcmFormat{AV_SAMPLE_FMT_S16, LoopClip::kAudioRate, ch}, m_out)) {
+            QMetaObject::invokeMethod(m_p, [p = m_p, e] { p->report(e); });
+            return;
+        }
+        deliver(-100.f);
+    }
+
+    void recordInput(const QByteArray& data, int frames)
+    {
+        const int ch = std::clamp(m_codec.effectiveConfig().channels, 1, 2);
+        if (!m_recSwr || m_recIn != m_inFmt || m_recChannels != ch) {
+            m_recSwr.reset();
+            AVChannelLayout inLayout{}, outLayout{};
+            av_channel_layout_default(&inLayout, m_inFmt.channels);
+            av_channel_layout_default(&outLayout, ch);
+            SwrContext* s = nullptr;
+            if (swr_alloc_set_opts2(&s, &outLayout, AV_SAMPLE_FMT_S16, LoopClip::kAudioRate, &inLayout, m_inFmt.fmt,
+                                    m_inFmt.rate, 0, nullptr) < 0 ||
+                swr_init(s) < 0) {
+                swr_free(&s);
+                return;
+            }
+            m_recSwr.reset(s);
+            m_recIn = m_inFmt;
+            m_recChannels = ch;
+        }
+        const int maxOut = swr_get_out_samples(m_recSwr.get(), frames);
+        if (maxOut <= 0)
+            return;
+        m_recPcm.resize(size_t(maxOut) * size_t(ch));
+        uint8_t* dst[1] = {reinterpret_cast<uint8_t*>(m_recPcm.data())};
+        const uint8_t* src[1] = {reinterpret_cast<const uint8_t*>(data.constData())};
+        const int got = swr_convert(m_recSwr.get(), dst, maxOut, src, frames);
+        if (got > 0)
+            m_p->m_clip->addAudio(m_recPcm.data(), size_t(got), ch);
+    }
+
     void onReadyRead()
     {
         if (!m_io)
@@ -193,11 +269,27 @@ private:
         const int frames = int(data.size() / bpf);
         const float inPeak = peakDb(data.constData(), data.size(), m_fmt.sampleFormat());
 
+        if (m_p->m_looping && m_p->m_clip && m_p->m_clip->hasAudio()) {
+            // The loop timer produces the output; the microphone only
+            // drives the input meter.
+            std::lock_guard lk(m_p->m_statsMutex);
+            m_p->m_stats.inputPeakDb = std::max(inPeak, m_p->m_stats.inputPeakDb);
+            return;
+        }
+        if (m_p->m_clip && m_p->m_clip->isRecording())
+            recordInput(data, frames);
+
         m_out.clear();
         if (auto e = m_codec.process(reinterpret_cast<const uint8_t*>(data.constData()), frames, m_inFmt, m_out)) {
             QMetaObject::invokeMethod(m_p, [p = m_p, e] { p->report(e); });
             return;
         }
+        deliver(inPeak);
+    }
+
+    // Degraded audio in m_out -> virtual microphone, monitor, stats.
+    void deliver(float inPeak)
+    {
         const std::size_t outFrames = m_out.size() / std::size_t(std::max(1, m_codec.outputChannels()));
         if (outFrames && m_p->m_vmicOpen)
             m_p->m_vmic->write(m_out.data(), outFrames);
@@ -254,6 +346,14 @@ private:
     std::vector<int16_t> m_out;
     double m_captureBufferMs = 20;
     QElapsedTimer m_retry;
+    // record / loop
+    QTimer* m_loopTimer = nullptr;
+    int64_t m_loopSample = -1;
+    std::vector<int16_t> m_loopPcm;
+    SwrPtr m_recSwr;
+    PcmFormat m_recIn{AV_SAMPLE_FMT_NONE, 0, 0};
+    int m_recChannels = 0;
+    std::vector<int16_t> m_recPcm;
 };
 
 AudioPipeline::AudioPipeline(QObject* parent) : QObject(parent)
@@ -389,6 +489,12 @@ void AudioPipeline::tryReconnect()
         }
         return;
     }
+}
+
+void AudioPipeline::setLooping(bool on)
+{
+    m_looping = on;
+    QMetaObject::invokeMethod(m_worker, [w = m_worker, on] { w->setLooping(on); }, Qt::QueuedConnection);
 }
 
 void AudioPipeline::onAudioInputsChanged()
