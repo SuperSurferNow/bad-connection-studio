@@ -73,10 +73,14 @@ int main(int argc, char** argv)
         }
         // Same index again: no new frame.
         CHECK(clip.videoFrameAt(0, 0, &idx) == nullptr);
-        // Late position: a later frame.
-        // (Windows sleeps in ~15.6 ms steps, so fewer frames fit in the trimmed
-        // clip there than the 80 recorded.)
-        CHECK(clip.videoFrameAt(d - 1, -1, &idx) != nullptr && idx > 30);
+        // Later positions give later frames. Frames are timed by the wall
+        // clock, so how many of the 80 fit in the trimmed clip depends on how
+        // long the sleeps above really took (Windows timers, busy CI runners).
+        int mid = -1, last = -1;
+        CHECK(clip.videoFrameAt(d / 2, -1, &mid) != nullptr);
+        CHECK(clip.videoFrameAt(d - 1, -1, &last) != nullptr);
+        std::printf("frame index at 50%%: %d, at end: %d\n", mid, last);
+        CHECK(mid > 0 && last > mid);
 
         // Loop clock wraps.
         clip.startPlayback();
