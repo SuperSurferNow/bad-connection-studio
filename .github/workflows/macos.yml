@@ -31,6 +31,16 @@ jobs:
           version: ${{ env.QT_VERSION }}
           modules: qtmultimedia
           cache: true
+      - name: Remove Qt's own FFmpeg
+        run: |
+          # Qt Multimedia ships an FFmpeg plugin with its own FFmpeg 7.1, whose
+          # dylibs have the same names as ours (libavcodec.61.dylib, ...);
+          # macdeployqt would put whichever it copies last into the bundle.
+          # The app uses Qt Multimedia only for audio, through Qt's native
+          # Darwin backend, so the plugin is not needed.
+          ls "$QT_ROOT_DIR"/lib/libav*.dylib "$QT_ROOT_DIR"/lib/libsw*.dylib 2>/dev/null || true
+          rm -f "$QT_ROOT_DIR"/plugins/multimedia/libffmpegmediaplugin.dylib
+          rm -f "$QT_ROOT_DIR"/lib/libav*.dylib "$QT_ROOT_DIR"/lib/libsw*.dylib "$QT_ROOT_DIR"/lib/libpostproc*.dylib
       - name: Restore FFmpeg build
         id: ffmpeg-cache
         uses: actions/cache@v4
@@ -60,6 +70,11 @@ jobs:
           leaks="$(find "$app" -type f \( -name '*.dylib' -o -perm -u+x \) -exec otool -L {} \; 2>/dev/null \
                    | grep -E "$FFMPEG_PREFIX|/opt/homebrew|/usr/local/|$RUNNER_WORKSPACE" || true)"
           if [ -n "$leaks" ]; then echo "::error title=Bundle not self-contained::$leaks" | head -20; exit 1; fi
+          # The bundled FFmpeg must be ours (with x264), not another copy.
+          if ! strings "$app"/Contents/Frameworks/libavcodec.*.dylib | grep -q -- '--enable-libx264'; then
+            echo "::error title=Wrong FFmpeg bundled::libavcodec in the bundle is not scripts/build-ffmpeg-macos.sh's build"
+            exit 1
+          fi
       - name: Ad-hoc sign
         run: |
           # No Apple developer account: an ad-hoc signature is enough for Apple
