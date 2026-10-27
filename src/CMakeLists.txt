@@ -20,6 +20,7 @@ add_library(bcs_core STATIC
     backend/VirtualMicBackend.h
     backend/BackendRegistry.h backend/BackendRegistry.cpp
     backend/common/AudioDeviceMicBackend.h backend/common/AudioDeviceMicBackend.cpp
+    backend/common/WindowOutputBackend.h backend/common/WindowOutputBackend.cpp
 )
 target_include_directories(bcs_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(bcs_core PUBLIC Qt6::Core Qt6::Gui Qt6::Multimedia PkgConfig::FFMPEG)
