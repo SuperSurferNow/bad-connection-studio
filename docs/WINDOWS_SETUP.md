@@ -51,17 +51,33 @@ virtual microphone always requires a kernel audio driver.
 
 ## 3. Installation for users
 
-1. Run `BadConnectionStudio-<version>-windows-x64-setup.exe` (app only).
+1. Run `BadConnectionStudio-windows-x64-setup.exe` (app only).
+   The installers are not code-signed (a certificate costs money every year),
+   so **SmartScreen** warns *"Windows protected your PC"*: click
+   **More info ▸ Run anyway**. Some browsers also ask you to *Keep* the
+   download.
 2. **Virtual camera (optional):** run
-   `BadConnectionStudio-VirtualCamera-<version>-Setup.exe`. It asks for
-   administrator rights, installs and registers the signed `softcam.dll`, and
-   adds its own entry to *Settings ▸ Apps* for uninstalling (which runs
-   `regsvr32 /u`). Restart call apps afterwards. Select **DirectShow Softcam**
-   in the call app.
-3. **Virtual microphone (optional):** install VB-CABLE from
+   `BadConnectionStudio-VirtualCamera-windows-setup.exe` (same SmartScreen
+   step). It asks for administrator rights, installs and registers
+   `softcam.dll` for 64-bit and 32-bit apps, and adds its own entry to
+   *Settings ▸ Apps* for uninstalling (which runs `regsvr32 /u`). Restart
+   call apps afterwards. Select **DirectShow Softcam** in the call app.
+
+   Works in apps that list DirectShow cameras: **Zoom, Discord, Slack, OBS,
+   Chrome, Edge, Firefox** (so Meet, Teams on the web, etc.), Skype, and
+   classic Teams. It does **not** appear in the **new Microsoft Teams** app or
+   the **Windows Camera** app, which only use the Media Foundation frame
+   server. For those, use the fallback below.
+3. **Fallback camera, no install (OBS bridge):** choose
+   **Output window (for OBS)** as the virtual camera. In OBS Studio
+   (<https://obsproject.com>) add a **Window Capture** of
+   *Bad Connection Studio — Output*, click **Start Virtual Camera**, and pick
+   **OBS Virtual Camera** in the call app. The OBS camera works in every app,
+   including new Teams. Keep the output window open and not minimised.
+4. **Virtual microphone (optional):** install VB-CABLE from
    <https://vb-audio.com/Cable/>. In the app choose *Play into: CABLE Input*;
    in the call app choose **CABLE Output** as the microphone.
-4. Privacy: *Settings ▸ Privacy & security ▸ Camera / Microphone* → allow
+5. Privacy: *Settings ▸ Privacy & security ▸ Camera / Microphone* → allow
    desktop apps. A refused permission is reported as *Permission denied*.
 
 ## 4. Signing policy
@@ -69,18 +85,20 @@ virtual microphone always requires a kernel audio driver.
 * The main installer and the virtual-camera component are Authenticode-signed
   in CI when a certificate is configured (`WINDOWS_CERT_PFX_BASE64`,
   `WINDOWS_CERT_PASSWORD` secrets).
-* The **virtual-camera component is only built when a certificate is
-  available**, and the build fails unless `softcam.dll` verifies as validly
-  signed. An unsigned filter DLL is never produced, bundled or installed
-  silently. Unsigned main-app installers from pull requests are development
-  builds.
+* Without a certificate, both installers and the Softcam DLLs are released
+  **unsigned**. That only changes the SmartScreen warning above: the DLLs are
+  user-mode COM filters, not drivers, so Windows does not require a
+  signature to register them. They are built in CI from the pinned Softcam
+  tag, and the release's `SHA256SUMS.txt` lets you check the download.
+* Nothing is ever installed silently: the virtual camera is its own
+  installer that you run, and it is never bundled into the app installer.
 
 ## 5. Status and validation still required (milestone 5)
 
 The Windows sources are written against the documented APIs, but this
 repository's CI is their first compile and test. Before release:
 
-- [ ] CI build with MSYS2 UCRT64 succeeds; clean-VM install + `--self-test` passes.
+- [x] CI build with MSYS2 UCRT64 succeeds; clean-VM install + `--self-test` passes.
 - [ ] Confirm the pinned Softcam tag, its solution layout and the exported API signatures.
 - [ ] Confirm Softcam's expected pixel orientation (top-down BGR24) with a test pattern.
 - [ ] Verify the camera in Zoom, Teams, Chrome (Meet), Firefox, Discord, OBS.

@@ -7,6 +7,9 @@
 #include "core/VideoCapture.h"
 #include "ui/DiagnosticsDialog.h"
 #include "ui/LevelMeter.h"
+#if defined(BCS_PLATFORM_LINUX)
+#include "ui/LoopbackSetupDialog.h"
+#endif
 #include "ui/VideoPreview.h"
 
 #include <QApplication>
@@ -49,7 +52,7 @@ namespace {
 bool isVirtualInput(const QString& d)
 {
     static const QStringList hints = {"Bad Connection", "BadConnectionMic", "bcs_mic", "CABLE Output", "VB-Audio",
-                                      "Voicemeeter Out", "Monitor of"};
+                                      "Voicemeeter Out", "Monitor of", "BlackHole"};
     for (const auto& h : hints)
         if (d.contains(h, Qt::CaseInsensitive))
             return true;
@@ -66,6 +69,12 @@ const Res kCaptureRes[] = {{0, 0, "Match output"}, {640, 480, "640 x 480"}, {128
                            {1920, 1080, "1920 x 1080"}};
 
 QString qs(const std::string& s) { return QString::fromStdString(s); }
+
+QString mmss(int64_t us)
+{
+    const int s = int(us / 1'000'000);
+    return QString("%1:%2").arg(s / 60).arg(s % 60, 2, 10, QChar('0'));
+}
 
 QLabel* hint(const QString& text)
 {
@@ -98,6 +107,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
     setWindowTitle(tr("Bad Connection Studio"));
     setWindowIcon(QIcon(":/bad-connection-studio.svg"));
     m_settings = AppSettings::load();
+    m_video.setLoopClip(&m_clip);
+    m_audio.setLoopClip(&m_clip);
 
     auto* left = new QWidget;
     auto* leftLay = new QVBoxLayout(left);
@@ -119,6 +130,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
     split->setStretchFactor(1, 1);
     setCentralWidget(split);
 
+    m_loopLabel = new QLabel;
+    statusBar()->addPermanentWidget(m_loopLabel);
     m_backendLabel = new QLabel;
     statusBar()->addPermanentWidget(m_backendLabel);
     buildMenus();
@@ -334,6 +347,23 @@ QWidget* MainWindow::buildButtons()
     g->addWidget(m_audioBtn, 0, 1);
     g->addWidget(m_bothBtn, 1, 0);
     g->addWidget(m_restoreBtn, 1, 1);
+
+    // Record -> loop. The clip is kept in memory only.
+    m_recordBtn = new QPushButton;
+    m_recordBtn->setToolTip(tr("Record up to %1 of clean camera and microphone input (kept in memory only, "
+                               "never saved to disk). Stopping the recording starts the loop.")
+                                .arg(mmss(LoopClip::kMaxDurationUs)));
+    m_loopBtn = new QPushButton(tr("Loop"));
+    m_loopBtn->setCheckable(true);
+    m_loopBtn->setToolTip(tr("Send the recorded clip on repeat instead of the live input. The quality sliders "
+                             "still apply."));
+    m_liveBtn = new QPushButton(tr("Back to live"));
+    m_liveBtn->setToolTip(tr("Return to the live camera and microphone and discard the clip."));
+    auto* row = new QHBoxLayout;
+    row->addWidget(m_recordBtn);
+    row->addWidget(m_loopBtn);
+    row->addWidget(m_liveBtn);
+    g->addLayout(row, 2, 0, 1, 2);
     return w;
 }
 
@@ -393,6 +423,9 @@ void MainWindow::buildMenus()
     file->addAction(tr("&Quit"), QKeySequence::Quit, this, &QWidget::close);
     auto* help = menuBar()->addMenu(tr("&Help"));
     help->addAction(tr("&Diagnostics and setup..."), this, &MainWindow::showDiagnostics);
+#if defined(BCS_PLATFORM_LINUX)
+    help->addAction(tr("Set up &virtual camera..."), this, &MainWindow::showLoopbackSetup);
+#endif
     help->addAction(tr("Open log folder"), this,
                     [] { QDesktopServices::openUrl(QUrl::fromLocalFile(logDirectory())); });
     help->addAction(tr("&About"), this, &MainWindow::showAbout);
@@ -460,6 +493,9 @@ void MainWindow::connectSignals()
     });
     connect(m_bothBtn, &QPushButton::clicked, this, &MainWindow::startBoth);
     connect(m_restoreBtn, &QPushButton::clicked, this, &MainWindow::restoreAndStopAll);
+    connect(m_recordBtn, &QPushButton::clicked, this, &MainWindow::toggleRecording);
+    connect(m_loopBtn, &QPushButton::clicked, this, [this](bool on) { on ? startLooping() : stopLooping(); });
+    connect(m_liveBtn, &QPushButton::clicked, this, &MainWindow::backToLive);
     connect(m_monitor, &QCheckBox::toggled, this, &MainWindow::setMonitoring);
 
     connect(&m_video, &VideoPipeline::previewFrame, this, [this](const QImage& img) {
@@ -570,6 +606,8 @@ void MainWindow::refreshCameras()
         gone.url = gone.id;
 #if defined(BCS_PLATFORM_LINUX)
         gone.format = "video4linux2";
+#elif defined(BCS_PLATFORM_MACOS)
+        gone.format = "avfoundation";
 #else
         gone.format = "dshow";
 #endif
@@ -668,9 +706,58 @@ void MainWindow::runStartupCheck()
         missing << tr("virtual microphone");
     if (!missing.isEmpty()) {
         statusBar()->showMessage(tr("Unavailable: %1 — see Help > Diagnostics").arg(missing.join(", ")), 15000);
+        if (offerLoopbackSetup())
+            return;
         if (!m_settings.skipStartupDiagnostics)
             QTimer::singleShot(300, this, &MainWindow::showDiagnostics);
     }
+}
+
+bool MainWindow::offerLoopbackSetup()
+{
+#if defined(BCS_PLATFORM_LINUX)
+    if (m_settings.skipLoopbackPrompt)
+        return false;
+    loopback::DistroInfo d;
+    loopback::KernelInfo k;
+    const loopback::State s = LoopbackSetupDialog::currentState(&d, &k);
+    if (s == loopback::State::Ready)
+        return false; // loaded: whatever is missing is not the driver
+    QTimer::singleShot(300, this, [this, s, d, k] {
+        QMessageBox box(this);
+        box.setIcon(QMessageBox::Information);
+        box.setWindowTitle(tr("Virtual camera not set up"));
+        box.setText(tr("<b>The virtual camera driver (v4l2loopback) is not ready.</b>"));
+        box.setInformativeText(QString::fromStdString(loopback::describeState(s, d, k)) + "\n\n" +
+                               tr("Bad Connection Studio can set it up for you. You will see every step before "
+                                  "anything runs, and your password is asked by the system, not by this app."));
+        auto* setup = box.addButton(s == loopback::State::NeedsReboot ? tr("Details...") : tr("Set up now..."),
+                                    QMessageBox::AcceptRole);
+        box.addButton(tr("Not now"), QMessageBox::RejectRole);
+        auto* never = box.addButton(tr("Don't ask again"), QMessageBox::DestructiveRole);
+        box.setDefaultButton(setup);
+        box.exec();
+        if (box.clickedButton() == setup) {
+            showLoopbackSetup();
+        } else if (box.clickedButton() == never) {
+            m_settings.skipLoopbackPrompt = true;
+            m_settings.save();
+            addMessage(tr("Virtual camera setup is still available under Help > Set up virtual camera."), false);
+        }
+    });
+    return true;
+#else
+    return false;
+#endif
+}
+
+void MainWindow::showLoopbackSetup()
+{
+#if defined(BCS_PLATFORM_LINUX)
+    LoopbackSetupDialog dlg(this);
+    dlg.exec();
+    refreshDestinations();
+#endif
 }
 
 // ------------------------------------------------------------------ config
@@ -805,6 +892,8 @@ void MainWindow::stopVideo()
 {
     m_video.stop();
     m_preview->clear(tr("Video stopped"));
+    if (m_audio.state() == AudioPipeline::State::Stopped)
+        backToLive();
     updateButtons();
 }
 
@@ -836,6 +925,8 @@ void MainWindow::stopAudio()
     m_audio.stop();
     m_inMeter->reset();
     m_outMeter->reset();
+    if (m_video.state() == VideoPipeline::State::Stopped)
+        backToLive();
     updateButtons();
 }
 
@@ -855,6 +946,87 @@ void MainWindow::restoreAndStopAll()
     m_preview->clear(tr("All devices released"));
     addMessage(tr("Stopped. Physical and virtual devices were released."), false);
     qCInfo(lcUi) << "restore/stop: all devices released";
+}
+
+void MainWindow::toggleRecording()
+{
+    if (m_clip.isRecording()) {
+        if (!m_clip.finishRecording()) {
+            addMessage(tr("Nothing was recorded (the clip needs at least half a second)."), true);
+            updateLoopUi();
+            return;
+        }
+        addMessage(tr("Recorded a %1 clip (%2 MiB in memory). Looping it now.")
+                       .arg(mmss(m_clip.durationUs()))
+                       .arg(double(m_clip.bytes()) / (1 << 20), 0, 'f', 1),
+                   false);
+        startLooping();
+        return;
+    }
+    if (m_video.state() == VideoPipeline::State::Stopped && m_audio.state() == AudioPipeline::State::Stopped)
+        return;
+    stopLooping(); // record the live input, not the old clip
+    m_clip.beginRecording();
+    qCInfo(lcUi) << "loop clip: recording";
+    updateLoopUi();
+}
+
+void MainWindow::startLooping()
+{
+    if (!m_clip.isReady()) {
+        updateLoopUi();
+        return;
+    }
+    m_clip.startPlayback();
+    m_video.setLooping(true);
+    m_audio.setLooping(true);
+    qCInfo(lcUi) << "loop clip: looping" << m_clip.durationUs() / 1000 << "ms";
+    updateLoopUi();
+}
+
+void MainWindow::stopLooping()
+{
+    if (m_video.isLooping() || m_audio.isLooping())
+        qCInfo(lcUi) << "loop clip: back to live input";
+    m_video.setLooping(false);
+    m_audio.setLooping(false);
+    updateLoopUi();
+}
+
+void MainWindow::backToLive()
+{
+    stopLooping();
+    if (m_clip.state() != LoopClip::State::Empty) {
+        m_clip.clear();
+        qCInfo(lcUi) << "loop clip: discarded";
+    }
+    updateLoopUi();
+}
+
+void MainWindow::updateLoopUi()
+{
+    if (!m_recordBtn)
+        return;
+    const bool running =
+        m_video.state() != VideoPipeline::State::Stopped || m_audio.state() != AudioPipeline::State::Stopped;
+    const bool recording = m_clip.isRecording();
+    const bool looping = m_video.isLooping() || m_audio.isLooping();
+
+    m_recordBtn->setText(recording ? tr("■ Stop  %1").arg(mmss(m_clip.recordedUs())) : tr("● Record"));
+    m_recordBtn->setEnabled(recording || running);
+    m_loopBtn->setEnabled(m_clip.isReady());
+    m_loopBtn->setChecked(looping);
+    m_liveBtn->setEnabled(m_clip.state() != LoopClip::State::Empty);
+
+    QString status;
+    if (recording)
+        status = tr("REC %1 / %2").arg(mmss(m_clip.recordedUs()), mmss(LoopClip::kMaxDurationUs));
+    else if (looping)
+        status = tr("LOOP %1 / %2").arg(mmss(m_clip.positionUs(nowUs())), mmss(m_clip.durationUs()));
+    else if (m_clip.isReady())
+        status = tr("Clip %1 ready").arg(mmss(m_clip.durationUs()));
+    m_loopLabel->setText(status);
+    m_preview->setBadge(recording ? tr("● REC") : looping && m_clip.hasVideo() ? tr("LOOP") : QString());
 }
 
 void MainWindow::setMonitoring(bool on)
@@ -958,6 +1130,9 @@ void MainWindow::onResume()
 void MainWindow::showDiagnostics()
 {
     DiagnosticsDialog dlg([this] { return probe(); }, m_settings.skipStartupDiagnostics, this);
+#if defined(BCS_PLATFORM_LINUX)
+    dlg.setSetupAction(tr("Set up virtual camera..."), [this] { showLoopbackSetup(); });
+#endif
     dlg.exec();
     m_settings.skipStartupDiagnostics = dlg.skipAtStartup();
     m_settings.save();
@@ -1010,11 +1185,18 @@ void MainWindow::updateButtons()
     m_videoBtn->setText(v ? tr("Stop video") : tr("Start video"));
     m_audioBtn->setText(a ? tr("Stop microphone") : tr("Start microphone"));
     m_bothBtn->setEnabled(!(v && a));
+    updateLoopUi();
 }
 
 void MainWindow::updateStats()
 {
     const double dt = std::max(0.05, double(m_statsClock.restart()) / 1000.0);
+
+    if (m_clip.isRecording() && m_clip.limitReached()) {
+        addMessage(tr("The recording reached its limit."), false);
+        toggleRecording();
+    }
+    updateLoopUi();
 
     // ---- video
     VideoStats vs = m_video.stats();

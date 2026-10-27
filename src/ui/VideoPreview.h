@@ -13,6 +13,8 @@ public:
     explicit VideoPreview(QWidget* parent = nullptr);
     void setImage(const QImage& img);
     void clear(const QString& message = {});
+    // Small label drawn over the top-left corner of the image ("LOOP").
+    void setBadge(const QString& text);
     QSize sizeHint() const override { return {640, 360}; }
 
 protected:
@@ -21,6 +23,7 @@ protected:
 private:
     QImage m_image;
     QString m_message;
+    QString m_badge;
 };
 
 } // namespace bcs

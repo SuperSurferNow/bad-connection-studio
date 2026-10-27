@@ -1,6 +1,7 @@
 #include "backend/BackendRegistry.h"
 
 #include "backend/common/AudioDeviceMicBackend.h"
+#include "backend/common/WindowOutputBackend.h"
 
 #if defined(BCS_PLATFORM_LINUX)
 #include "backend/linux/V4L2LoopbackCamera.h"
@@ -17,12 +18,14 @@ namespace bcs {
 
 std::vector<std::string> cameraBackendIds()
 {
+    // The output window (OBS bridge) is last: a fallback on Linux and
+    // Windows, the only option on macOS.
 #if defined(BCS_PLATFORM_LINUX)
-    return {"v4l2loopback"};
+    return {"v4l2loopback", WindowOutputBackend::kId};
 #elif defined(BCS_PLATFORM_WINDOWS)
-    return {"softcam"};
+    return {"softcam", WindowOutputBackend::kId};
 #else
-    return {};
+    return {WindowOutputBackend::kId};
 #endif
 }
 
@@ -38,6 +41,8 @@ std::vector<std::string> micBackendIds()
 
 std::unique_ptr<VirtualCameraBackend> createCameraBackend(const std::string& id, const BackendOptions& opts)
 {
+    if (id == WindowOutputBackend::kId)
+        return std::make_unique<WindowOutputBackend>();
 #if defined(BCS_PLATFORM_LINUX)
     if (id == "v4l2loopback")
         return std::make_unique<V4L2LoopbackCamera>(opts.v4l2Yuyv ? V4L2LoopbackCamera::PixelFormat::YUYV
@@ -69,8 +74,10 @@ std::unique_ptr<VirtualMicBackend> createMicBackend(const std::string& id, const
 
 const BackendStatus* CapabilityReport::activeCamera() const
 {
+    // The output window only counts where it is the sole backend (macOS):
+    // elsewhere a missing native camera must still be reported and set up.
     for (const auto& s : cameras)
-        if (s.available)
+        if (s.available && (s.backendId != WindowOutputBackend::kId || cameras.size() == 1))
             return &s;
     return nullptr;
 }

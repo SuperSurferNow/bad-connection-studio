@@ -77,6 +77,11 @@ private:
     void stopAudio();
     void startBoth();
     void restoreAndStopAll();
+    void toggleRecording();
+    void startLooping();
+    void stopLooping();      // back to the live input, the clip is kept
+    void backToLive();       // stop looping and free the clip
+    void updateLoopUi();
     void setMonitoring(bool on);
     void onVideoSlider(int pos);
     void onAudioSlider(int pos);
@@ -87,6 +92,8 @@ private:
     void onSleep();
     void onResume();
     void showDiagnostics();
+    void showLoopbackSetup();
+    bool offerLoopbackSetup(); // true if a setup popup was scheduled
     void showAbout();
 
     // feedback
@@ -97,6 +104,7 @@ private:
     QImage placeholderImage(int w, int h) const;
 
     AppSettings m_settings;
+    LoopClip m_clip; // declared before the pipelines, which use it
     VideoPipeline m_video;
     AudioPipeline m_audio;
     std::vector<CameraDevice> m_cameras;
@@ -145,6 +153,10 @@ private:
     QPushButton* m_audioBtn = nullptr;
     QPushButton* m_bothBtn = nullptr;
     QPushButton* m_restoreBtn = nullptr;
+    QPushButton* m_recordBtn = nullptr;
+    QPushButton* m_loopBtn = nullptr;
+    QPushButton* m_liveBtn = nullptr;
+    QLabel* m_loopLabel = nullptr;
 
     // right pane
     VideoPreview* m_preview = nullptr;

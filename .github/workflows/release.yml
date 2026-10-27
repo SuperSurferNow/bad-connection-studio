@@ -1,8 +1,8 @@
 name: Release
 
 # Builds every package and attaches it to a GitHub Release. Start it either by
-#  - pushing a tag:   git tag v0.1.0 && git push origin v0.1.0
-#  - or on github.com: Releases > Draft a new release > new tag v0.1.0 > Publish
+#  - pushing a tag:   git tag v0.2.0 && git push origin v0.2.0
+#  - or on github.com: Releases > Draft a new release > new tag v0.2.0 > Publish
 #    (the binaries are attached to that release when the builds finish).
 on:
   push:
@@ -14,9 +14,11 @@ jobs:
   windows:
     uses: ./.github/workflows/windows.yml
     secrets: inherit
+  macos:
+    uses: ./.github/workflows/macos.yml
 
   publish:
-    needs: [linux, windows]
+    needs: [linux, windows, macos]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -27,14 +29,25 @@ jobs:
           path: artifacts
       - name: Collect release assets
         run: |
+          # Version-less names, so README links to releases/latest/download/<name>
+          # always point at the newest build.
+          set -euo pipefail
           mkdir -p assets
-          find artifacts/appimage-* -type f -exec cp {} assets/ \;
-          cp artifacts/windows-installer/build/BadConnectionStudio-*-setup.exe assets/
+          for arch in x86_64 aarch64; do
+            cp artifacts/appimage-$arch/BadConnectionStudio-*-$arch.AppImage \
+               assets/BadConnectionStudio-linux-$arch.AppImage
+            cp artifacts/appimage-$arch/BadConnectionStudio-*-$arch.LICENSE-REPORT.txt \
+               assets/BadConnectionStudio-linux-$arch.LICENSE-REPORT.txt
+          done
+          cp artifacts/windows-installer/build/BadConnectionStudio-*-windows-x64-setup.exe \
+             assets/BadConnectionStudio-windows-x64-setup.exe
           cp artifacts/windows-installer/stage/share/doc/BadConnectionStudio/LICENSE-REPORT.txt \
              assets/BadConnectionStudio-windows-x64.LICENSE-REPORT.txt
-          if [ -d artifacts/windows-virtual-camera-component ]; then
-            cp artifacts/windows-virtual-camera-component/*.exe assets/
-          fi
+          cp artifacts/windows-virtual-camera-component/BadConnectionStudio-VirtualCamera-windows-setup.exe assets/
+          for arch in arm64 x86_64; do
+            cp artifacts/macos-$arch/BadConnectionStudio-macos-$arch.dmg assets/
+            cp artifacts/macos-$arch/BadConnectionStudio-macos-$arch.LICENSE-REPORT.txt assets/
+          done
           (cd assets && sha256sum * > SHA256SUMS.txt)
           ls -la assets
       - name: Create release (or add assets to the one created on github.com)

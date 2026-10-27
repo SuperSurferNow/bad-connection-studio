@@ -10,7 +10,15 @@ bcs_add_test(test_buffers)
 bcs_add_test(test_video_roundtrip)
 bcs_add_test(test_audio_roundtrip)
 bcs_add_test(test_video_pipeline)
+bcs_add_test(test_loop_clip)
+bcs_add_test(test_window_output)
 
 # Needs an audio server (PipeWire/PulseAudio/WASAPI); exits 77 = skipped otherwise.
 bcs_add_test(test_audio_pipeline)
 set_tests_properties(test_audio_pipeline PROPERTIES SKIP_RETURN_CODE 77)
+
+if(BCS_LINUX)
+    bcs_add_test(test_loopback_setup)
+    target_compile_definitions(test_loopback_setup PRIVATE
+        BCS_HELPER_SCRIPT="${PROJECT_SOURCE_DIR}/packaging/linux/bcs-loopback-helper.sh")
+endif()

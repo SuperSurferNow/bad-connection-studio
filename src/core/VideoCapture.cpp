@@ -85,6 +85,15 @@ MediaError VideoCapture::tryOpen(const CameraDevice& device, const CaptureReques
     }
     if (device.format == "dshow")
         av_dict_set(&opts, "rtbufsize", "8M", 0); // bounded device-side buffer
+    if (device.format == "avfoundation") {
+        // avfoundation's defaults (29.97 fps, yuv420p) are refused by most
+        // Mac cameras, so even the relaxed attempts name a rate and nv12,
+        // which every built-in and UVC camera offers.
+        if (!av_dict_get(opts, "framerate", nullptr, 0))
+            av_dict_set(&opts, "framerate", std::to_string(req.fps > 0 ? req.fps : 30).c_str(), 0);
+        if (!av_dict_get(opts, "pixel_format", nullptr, 0))
+            av_dict_set(&opts, "pixel_format", "nv12", 0);
+    }
 
     m_fmt = avformat_alloc_context();
     m_fmt->flags |= AVFMT_FLAG_NONBLOCK | AVFMT_FLAG_NOBUFFER;

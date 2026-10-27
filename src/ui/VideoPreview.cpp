@@ -18,6 +18,14 @@ void VideoPreview::setImage(const QImage& img)
     update();
 }
 
+void VideoPreview::setBadge(const QString& text)
+{
+    if (text == m_badge)
+        return;
+    m_badge = text;
+    update();
+}
+
 void VideoPreview::clear(const QString& message)
 {
     m_image = QImage();
@@ -40,6 +48,20 @@ void VideoPreview::paintEvent(QPaintEvent*)
     // instead of being smoothed away by the preview.
     p.setRenderHint(QPainter::SmoothPixmapTransform, s.width() < m_image.width());
     p.drawImage(target, m_image);
+
+    if (!m_badge.isEmpty()) {
+        QFont f = font();
+        f.setBold(true);
+        p.setFont(f);
+        const QRect text = p.fontMetrics().boundingRect(m_badge);
+        const QRect box(target.topLeft() + QPoint(10, 10), text.size() + QSize(16, 8));
+        p.setRenderHint(QPainter::Antialiasing);
+        p.setPen(Qt::NoPen);
+        p.setBrush(QColor(200, 30, 30, 220));
+        p.drawRoundedRect(box, 4, 4);
+        p.setPen(Qt::white);
+        p.drawText(box, Qt::AlignCenter, m_badge);
+    }
 }
 
 } // namespace bcs

@@ -33,7 +33,7 @@ struct CapabilityReport {
 // "Fedora Linux 44 / kernel ... / x86_64"
 std::string platformDescription();
 
-// Launch-time capability check: never changes system state.
+// Launch-time capability check: read-only, never changes system state.
 CapabilityReport probeBackends(const BackendOptions& opts);
 
 // "backendId|deviceId" <-> parts, used for destination combo boxes/settings.

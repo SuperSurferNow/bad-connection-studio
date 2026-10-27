@@ -9,6 +9,9 @@ extern "C" {
 #if defined(BCS_PLATFORM_LINUX)
 #include "backend/linux/V4L2Devices.h"
 #include <cstring>
+#elif defined(__APPLE__)
+#include <QCameraDevice>
+#include <QMediaDevices>
 #endif
 
 #include <algorithm>
@@ -39,16 +42,35 @@ std::vector<CameraDevice> enumerateCameras(bool includeVirtual)
     return out;
 }
 
+#elif defined(__APPLE__)
+
+// libavdevice's avfoundation input cannot list devices (it only logs them),
+// so Qt lists them. avfoundation opens a camera by its name.
+std::vector<CameraDevice> enumerateCameras(bool includeVirtual)
+{
+    std::vector<CameraDevice> out;
+    for (const QCameraDevice& d : QMediaDevices::videoInputs()) {
+        CameraDevice c;
+        c.name = d.description().toStdString();
+        c.id = d.id().toStdString(); // AVCaptureDevice uniqueID
+        c.url = c.name + ":none";    // "<video>:<audio>"
+        c.format = "avfoundation";
+        // OBS's camera carries our own output when the OBS bridge is used.
+        c.isVirtual = c.name.find("OBS Virtual Camera") != std::string::npos ||
+                      c.name.find("Bad Connection") != std::string::npos;
+        if (c.isVirtual && !includeVirtual)
+            continue;
+        out.push_back(c);
+    }
+    return out;
+}
+
 #else // Windows (and anything else libavdevice can enumerate)
 
 namespace {
 const char* platformInputFormat()
 {
-#if defined(_WIN32)
     return "dshow";
-#else
-    return "avfoundation";
-#endif
 }
 
 bool looksLikeOurVirtualCamera(const std::string& name)

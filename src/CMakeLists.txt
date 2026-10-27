@@ -15,10 +15,12 @@ add_library(bcs_core STATIC
     core/CameraEnumerator.h core/CameraEnumerator.cpp
     core/SelfTest.h core/SelfTest.cpp
     core/SyntheticSource.h core/SyntheticSource.cpp
+    core/LoopClip.h core/LoopClip.cpp
     backend/VirtualCameraBackend.h
     backend/VirtualMicBackend.h
     backend/BackendRegistry.h backend/BackendRegistry.cpp
     backend/common/AudioDeviceMicBackend.h backend/common/AudioDeviceMicBackend.cpp
+    backend/common/WindowOutputBackend.h backend/common/WindowOutputBackend.cpp
 )
 target_include_directories(bcs_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(bcs_core PUBLIC Qt6::Core Qt6::Gui Qt6::Multimedia PkgConfig::FFMPEG)
@@ -34,7 +36,8 @@ endif()
 if(BCS_LINUX)
     target_sources(bcs_core PRIVATE
         backend/linux/V4L2Devices.h backend/linux/V4L2Devices.cpp
-        backend/linux/V4L2LoopbackCamera.h backend/linux/V4L2LoopbackCamera.cpp)
+        backend/linux/V4L2LoopbackCamera.h backend/linux/V4L2LoopbackCamera.cpp
+        backend/linux/LoopbackSetup.h backend/linux/LoopbackSetup.cpp)
     target_compile_definitions(bcs_core PUBLIC BCS_PLATFORM_LINUX=1)
     if(BCS_WITH_PIPEWIRE)
         target_sources(bcs_core PRIVATE
@@ -51,10 +54,12 @@ elseif(BCS_WINDOWS)
         backend/windows/SoftcamCameraBackend.h backend/windows/SoftcamCameraBackend.cpp)
     target_compile_definitions(bcs_core PUBLIC BCS_PLATFORM_WINDOWS=1 NOMINMAX WIN32_LEAN_AND_MEAN UNICODE _UNICODE)
     target_link_libraries(bcs_core PRIVATE advapi32)
+elseif(BCS_MACOS)
+    target_compile_definitions(bcs_core PUBLIC BCS_PLATFORM_MACOS=1)
 endif()
 
 # ------------------------------------------------------------------ app
-qt_add_executable(bad-connection-studio WIN32
+qt_add_executable(bad-connection-studio WIN32 MACOSX_BUNDLE
     main.cpp
     app/Logging.h app/Logging.cpp
     app/Settings.h app/Settings.cpp
@@ -78,6 +83,25 @@ endif()
 if(BCS_WINDOWS)
     target_sources(bad-connection-studio PRIVATE ${PROJECT_SOURCE_DIR}/packaging/windows/app.rc)
 endif()
+if(BCS_MACOS)
+    # Info.plist carries the camera/microphone permission texts; without them
+    # macOS kills the app on first access.
+    set_target_properties(bad-connection-studio PROPERTIES
+        OUTPUT_NAME BadConnectionStudio
+        MACOSX_BUNDLE_INFO_PLIST ${PROJECT_SOURCE_DIR}/packaging/macos/Info.plist.in
+        MACOSX_BUNDLE_GUI_IDENTIFIER io.github.badconnectionstudio
+        MACOSX_BUNDLE_BUNDLE_NAME "Bad Connection Studio"
+        MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
+        MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION})
+endif()
+if(BCS_LINUX)
+    target_sources(bad-connection-studio PRIVATE ui/LoopbackSetupDialog.h ui/LoopbackSetupDialog.cpp)
+    # The root helper is embedded and piped to pkexec; never installed as a file.
+    qt_add_resources(bad-connection-studio "linux_helper"
+        PREFIX "/linux"
+        BASE ${PROJECT_SOURCE_DIR}/packaging/linux
+        FILES ${PROJECT_SOURCE_DIR}/packaging/linux/bcs-loopback-helper.sh)
+endif()
 
 if(BCS_WINDOWS)
     # MSYS2/MinGW: FFmpeg, codec and runtime DLLs live next to the compiler.
@@ -91,6 +115,14 @@ if(BCS_WINDOWS)
             POST_EXCLUDE_REGEXES ".*[Ss]ystem32/.*\\.dll"
             DIRECTORIES "${BCS_TOOLCHAIN_BIN}" ${BCS_RUNTIME_DLL_DIRS}
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+    qt_generate_deploy_app_script(TARGET bad-connection-studio
+        OUTPUT_SCRIPT bcs_deploy_script
+        NO_UNSUPPORTED_PLATFORM_ERROR)
+    install(SCRIPT ${bcs_deploy_script})
+elseif(BCS_MACOS)
+    # macdeployqt copies Qt and every other non-system dylib (FFmpeg and its
+    # codec libraries) into the bundle and rewrites their install names.
+    install(TARGETS bad-connection-studio BUNDLE DESTINATION .)
     qt_generate_deploy_app_script(TARGET bad-connection-studio
         OUTPUT_SCRIPT bcs_deploy_script
         NO_UNSUPPORTED_PLATFORM_ERROR)

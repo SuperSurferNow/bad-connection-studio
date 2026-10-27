@@ -42,8 +42,16 @@
   (`PowerMonitor`). `BackendRegistry` lists backends per platform. Each
   backend has a read-only `probe()` used by the launch-time capability check
   and Diagnostics.
-* **External OS components are never installed by the app.** Backends
-  detect, explain and fall back (preview-only / meter-only). The v4l2
+* **External OS components are never installed silently.** Backends
+  detect, explain and fall back (preview-only / meter-only). The one
+  exception is opt-in: on Linux, *Set up virtual camera*
+  (`LoopbackSetupDialog`) installs and loads v4l2loopback after showing every
+  step. The app itself never runs as root; the dialog pipes a fixed helper
+  script (`packaging/linux/bcs-loopback-helper.sh`, embedded as a resource)
+  to `pkexec systemd-run --pipe -p ProtectHome=yes -p PrivateTmp=yes bash -s`
+  and passes only allow-listed action names (`loopback::allowedActions()`).
+  Distribution, kernel and Secure Boot detection (`LoopbackSetup.cpp`) is
+  unprivileged and read-only. The v4l2
   backend refuses any device whose driver is not `v4l2 loopback`, so a
   physical camera is never written to.
 

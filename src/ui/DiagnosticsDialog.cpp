@@ -29,7 +29,7 @@ DiagnosticsDialog::DiagnosticsDialog(std::function<CapabilityReport()> probe, bo
     m_skip->setChecked(skipAtStartup);
     lay->addWidget(m_skip);
 
-    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
+    auto* buttons = m_buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
     auto* recheck = buttons->addButton(tr("Re-check"), QDialogButtonBox::ActionRole);
     auto* copy = buttons->addButton(tr("Copy report"), QDialogButtonBox::ActionRole);
     auto* logs = buttons->addButton(tr("Open log folder"), QDialogButtonBox::ActionRole);
@@ -45,6 +45,15 @@ DiagnosticsDialog::DiagnosticsDialog(std::function<CapabilityReport()> probe, bo
 }
 
 bool DiagnosticsDialog::skipAtStartup() const { return m_skip->isChecked(); }
+
+void DiagnosticsDialog::setSetupAction(const QString& label, std::function<void()> action)
+{
+    auto* b = m_buttons->addButton(label, QDialogButtonBox::ActionRole);
+    connect(b, &QPushButton::clicked, this, [this, action = std::move(action)] {
+        action();
+        refresh();
+    });
+}
 
 void DiagnosticsDialog::refresh()
 {

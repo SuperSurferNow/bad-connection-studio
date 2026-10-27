@@ -27,6 +27,9 @@ const char* errorKindHint(ErrorKind kind)
     case ErrorKind::PermissionDenied:
 #if defined(_WIN32)
         return "Check Settings > Privacy & security > Camera / Microphone and allow desktop apps.";
+#elif defined(__APPLE__)
+        return "Allow Bad Connection Studio in System Settings > Privacy & Security > Camera / "
+               "Microphone, then restart the app.";
 #else
         return "Your user cannot open the device node. Check that you are logged in locally "
                "(udev 'uaccess') or a member of the 'video' / 'audio' group. See Help > Diagnostics.";

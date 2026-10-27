@@ -12,7 +12,7 @@ AudioDeviceMicBackend::~AudioDeviceMicBackend() { close(); }
 bool AudioDeviceMicBackend::looksVirtual(const QString& d)
 {
     static const QStringList hints = {"CABLE Input", "VB-Audio", "Voicemeeter", "Virtual", "Null",
-                                      "BadConnection", "bcs_sink", "Loopback"};
+                                      "BadConnection", "bcs_sink", "Loopback", "BlackHole"};
     for (const auto& h : hints)
         if (d.contains(h, Qt::CaseInsensitive))
             return true;
@@ -43,11 +43,27 @@ logout); run them yourself:</p>
 pactl load-module module-remap-source master=bcs_sink.monitor source_name=bcs_mic source_properties=device.description=BadConnectionMic</pre>
 <p>Then pick <i>"Play into: BadConnectionSink"</i> here and <i>BadConnectionMic</i>
 in the call app.</p>)html";
+    static constexpr const char* kMac = R"html(<p>macOS has no API for an app to create a microphone; a virtual audio
+<b>driver</b> is needed. Bad Connection Studio does not ship or install one.
+Recommended: <b>BlackHole 2ch</b> (free, GPL-3.0) from
+<code>https://existential.audio/blackhole/</code>, or
+<code>brew install blackhole-2ch</code>.</p>
+<ol><li>Install BlackHole 2ch (it asks for your password).</li>
+<li>Here, choose <i>"Play into: BlackHole 2ch"</i> as the virtual microphone.</li>
+<li>In the call app, select <i>"BlackHole 2ch"</i> as the microphone.</li></ol>
+<p>Your physical microphone is never changed. BlackHole is hidden from the
+microphone list here to prevent a feedback loop.</p>)html";
 #if defined(_WIN32)
     (void)kLinux;
+    (void)kMac;
     return kWindows;
+#elif defined(__APPLE__)
+    (void)kLinux;
+    (void)kWindows;
+    return kMac;
 #else
     (void)kWindows;
+    (void)kMac;
     return kLinux;
 #endif
 }
@@ -58,6 +74,8 @@ BackendStatus AudioDeviceMicBackend::probe()
     st.backendId = "audio-output";
 #if defined(_WIN32)
     st.displayName = "Virtual audio cable (VB-CABLE or similar, external driver)";
+#elif defined(__APPLE__)
+    st.displayName = "Virtual audio driver (BlackHole or similar, external driver)";
 #else
     st.displayName = "Fallback: play into a null sink (PulseAudio-compatible layer)";
 #endif
@@ -81,6 +99,8 @@ BackendStatus AudioDeviceMicBackend::probe()
     else
 #if defined(_WIN32)
         st.summary = "No virtual audio cable found (install VB-CABLE to get a virtual microphone)";
+#elif defined(__APPLE__)
+        st.summary = "No virtual audio driver found (install BlackHole 2ch to get a virtual microphone)";
 #else
         st.summary = "No null sink / virtual output found";
 #endif
