@@ -31,16 +31,6 @@ jobs:
           version: ${{ env.QT_VERSION }}
           modules: qtmultimedia
           cache: true
-      - name: Remove Qt's own FFmpeg
-        run: |
-          # Qt Multimedia ships an FFmpeg plugin with its own FFmpeg 7.1, whose
-          # dylibs have the same names as ours (libavcodec.61.dylib, ...);
-          # macdeployqt would put whichever it copies last into the bundle.
-          # The app uses Qt Multimedia only for audio, through Qt's native
-          # Darwin backend, so the plugin is not needed.
-          ls "$QT_ROOT_DIR"/lib/libav*.dylib "$QT_ROOT_DIR"/lib/libsw*.dylib 2>/dev/null || true
-          rm -f "$QT_ROOT_DIR"/plugins/multimedia/libffmpegmediaplugin.dylib
-          rm -f "$QT_ROOT_DIR"/lib/libav*.dylib "$QT_ROOT_DIR"/lib/libsw*.dylib "$QT_ROOT_DIR"/lib/libpostproc*.dylib
       - name: Restore FFmpeg build
         id: ffmpeg-cache
         uses: actions/cache@v4
@@ -55,6 +45,17 @@ jobs:
           export PKG_CONFIG_PATH="$FFMPEG_PREFIX/lib/pkgconfig"
           scripts/ci-step.sh Configure cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX="$PWD/stage"
+      - name: Remove Qt's own FFmpeg
+        run: |
+          # Qt Multimedia ships an FFmpeg plugin with its own FFmpeg 7.1, whose
+          # dylibs have the same names as ours (libavcodec.61.dylib, ...);
+          # macdeployqt would put whichever it copies last into the bundle.
+          # The app uses Qt Multimedia only for audio, through Qt's native
+          # Darwin backend, so the plugin is not needed. Removed only after
+          # Configure: Qt's CMake package files expect it to exist.
+          ls "$QT_ROOT_DIR"/lib/libav*.dylib "$QT_ROOT_DIR"/lib/libsw*.dylib 2>/dev/null || true
+          rm -f "$QT_ROOT_DIR"/plugins/multimedia/libffmpegmediaplugin.dylib
+          rm -f "$QT_ROOT_DIR"/lib/libav*.dylib "$QT_ROOT_DIR"/lib/libsw*.dylib "$QT_ROOT_DIR"/lib/libpostproc*.dylib
       - name: Build
         run: scripts/ci-step.sh Build cmake --build build
       - name: Unit and codec round-trip tests
