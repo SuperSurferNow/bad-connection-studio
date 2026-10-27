@@ -13,6 +13,7 @@ namespace bcs {
 // audio OUTPUT device whose other end appears as a microphone:
 //  - Windows: VB-Audio Virtual Cable ("CABLE Input" -> call app selects
 //    "CABLE Output"), installed separately by the user;
+//  - macOS: BlackHole 2ch (both ends are named "BlackHole 2ch");
 //  - Linux without native PipeWire: a PulseAudio/pipewire-pulse null sink +
 //    remap-source the user created (see Diagnostics).
 // By default only outputs that look virtual are offered, so the degraded mic

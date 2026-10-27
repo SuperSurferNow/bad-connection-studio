@@ -52,7 +52,7 @@ namespace {
 bool isVirtualInput(const QString& d)
 {
     static const QStringList hints = {"Bad Connection", "BadConnectionMic", "bcs_mic", "CABLE Output", "VB-Audio",
-                                      "Voicemeeter Out", "Monitor of"};
+                                      "Voicemeeter Out", "Monitor of", "BlackHole"};
     for (const auto& h : hints)
         if (d.contains(h, Qt::CaseInsensitive))
             return true;
@@ -606,6 +606,8 @@ void MainWindow::refreshCameras()
         gone.url = gone.id;
 #if defined(BCS_PLATFORM_LINUX)
         gone.format = "video4linux2";
+#elif defined(BCS_PLATFORM_MACOS)
+        gone.format = "avfoundation";
 #else
         gone.format = "dshow";
 #endif

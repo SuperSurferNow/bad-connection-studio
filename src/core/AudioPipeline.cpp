@@ -121,6 +121,8 @@ public:
             closeInput();
 #if defined(_WIN32)
             const std::string hint = " Check Windows privacy settings for microphone access.";
+#elif defined(__APPLE__)
+            const std::string hint = " Allow microphone access in System Settings > Privacy & Security.";
 #else
             const std::string hint;
 #endif

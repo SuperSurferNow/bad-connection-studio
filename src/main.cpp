@@ -14,6 +14,9 @@ extern "C" {
 #include <QCommandLineParser>
 #include <QCoreApplication>
 #include <QLoggingCategory>
+#if defined(BCS_PLATFORM_MACOS)
+#include <QPermissions>
+#endif
 
 #include <cstdio>
 #include <cstring>
@@ -23,7 +26,7 @@ extern "C" {
 #include <windows.h>
 #endif
 
-#if defined(__unix__)
+#if defined(__unix__) || defined(__APPLE__)
 #include <QSocketNotifier>
 #include <csignal>
 #include <sys/socket.h>
@@ -125,6 +128,17 @@ int main(int argc, char** argv)
 
     bcs::MainWindow w;
     w.show();
+#if defined(BCS_PLATFORM_MACOS) && QT_CONFIG(permissions)
+    // Ask up front (one system prompt each) instead of failing on first use.
+    // A denial is reported when the device is opened, with a hint.
+    app->requestPermission(QCameraPermission{}, &w, [&w](const QPermission& cam) {
+        qInfo() << "camera permission:" << (cam.status() == Qt::PermissionStatus::Granted ? "granted" : "denied");
+        qApp->requestPermission(QMicrophonePermission{}, &w, [](const QPermission& mic) {
+            qInfo() << "microphone permission:"
+                    << (mic.status() == Qt::PermissionStatus::Granted ? "granted" : "denied");
+        });
+    });
+#endif
     if (parser.isSet(screenshot))
         w.captureScreenshot(parser.value(screenshot), 4000);
     else
