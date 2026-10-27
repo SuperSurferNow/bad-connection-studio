@@ -30,7 +30,9 @@ license it was built against at runtime (Help ▸ About and `--self-test`).
 |---|---|---|
 | v4l2loopback | GPL-2.0 | Kernel module; must match the running kernel |
 | PipeWire / libpipewire | MIT | System service; the host's libpipewire is always used (excluded from the AppImage) to avoid version skew with the host's PipeWire modules |
-| Softcam (Windows virtual camera component) | MIT | Shipped as a **separate, signed** installer; never inside the app installer |
+| Softcam (Windows virtual camera component) | MIT | Shipped as a **separate** installer (signed when a certificate is configured); never inside the app installer |
+| BlackHole (macOS virtual microphone) | GPL-3.0 | Audio driver; the user installs it |
+| OBS Studio (virtual camera via the output window) | GPL-2.0 | Separate application; only captures the app's window |
 | VB-Audio Virtual Cable | Proprietary donationware | Redistribution needs a license from VB-Audio; the user installs it |
 
 ## FFmpeg build options decide the distribution license

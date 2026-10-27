@@ -20,15 +20,17 @@ either.</p>
 <p>Bad Connection Studio uses <b>Softcam</b> (MIT license), a user-mode
 DirectShow camera filter &mdash; not a kernel driver. It is installed by the
 separate <b>"Bad Connection Studio Virtual Camera"</b> component installer,
-which asks for administrator rights, registers the signed
-<code>softcam.dll</code> with <code>regsvr32</code>, and has its own
+which asks for administrator rights, registers <code>softcam.dll</code> for
+64-bit and 32-bit apps with <code>regsvr32</code>, and has its own
 uninstaller (<i>Settings &gt; Apps</i>). The main installer never registers it
 silently.</p>
-<ol><li>Run <code>BadConnectionStudio-VirtualCamera-Setup.exe</code>.</li>
+<ol><li>Run <code>BadConnectionStudio-VirtualCamera-windows-setup.exe</code>
+(if SmartScreen warns: <i>More info &gt; Run anyway</i>).</li>
 <li>Restart call apps so they re-enumerate cameras.</li>
 <li>Choose <i>"DirectShow Softcam"</i> in the call app.</li></ol>
 <p>Only one program can feed Softcam at a time. Apps that use only the
-Media Foundation frame server (e.g. the built-in Camera app) will not list it.</p>)html";
+Media Foundation frame server (the new Teams app, the built-in Camera app)
+will not list it: use the <i>Output window (for OBS)</i> camera there.</p>)html";
 }
 
 } // namespace

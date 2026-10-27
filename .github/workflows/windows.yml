@@ -96,14 +96,14 @@ jobs:
           path: self-test.txt
 
   virtual-camera-component:
-    # The Softcam component is built and published ONLY when a code-signing
-    # certificate is available. An unsigned DirectShow filter is never shipped.
-    name: Virtual camera component (signed only)
+    # Softcam, a user-mode DirectShow camera filter, as a separate installer.
+    # Built for 64-bit and 32-bit call apps. Signed when a code-signing
+    # certificate is configured; otherwise shipped unsigned (Windows shows a
+    # SmartScreen warning, see docs/WINDOWS_SETUP.md).
+    name: Virtual camera component (x64 + x86)
     runs-on: windows-2022
     env:
-      # Pin a reviewed Softcam release tag before enabling signing; the
-      # solution/output paths below follow that repository's layout.
-      SOFTCAM_REF: v1.8
+      SOFTCAM_REF: v1.8.1
     steps:
       - uses: actions/checkout@v5
       - name: Check for signing certificate
@@ -114,18 +114,29 @@ jobs:
         run: |
           if ($env:CERT_PFX_BASE64) { "present=true" >> $env:GITHUB_OUTPUT } else {
             "present=false" >> $env:GITHUB_OUTPUT
-            Write-Host "::notice::No code-signing certificate configured; the virtual camera component is not built."
+            Write-Host "::notice::No code-signing certificate configured; the virtual camera component is unsigned."
           }
-      - name: Build Softcam
-        if: steps.cert.outputs.present == 'true'
+      - name: Build Softcam (x64 and Win32)
         shell: pwsh
         run: |
           git clone --depth 1 --branch $env:SOFTCAM_REF https://github.com/tshino/softcam.git softcam
           $msbuild = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -find MSBuild\**\Bin\MSBuild.exe
-          & $msbuild softcam\softcam.sln /p:Configuration=Release /p:Platform=x64
-          Copy-Item softcam\x64\Release\softcam.dll packaging\windows\virtual-camera\
-          Copy-Item softcam\LICENSE packaging\windows\virtual-camera\softcam-LICENSE.txt
-      - name: Sign DLL, build and sign component installer
+          foreach ($platform in "x64", "Win32") {
+            & $msbuild softcam\softcam.sln /t:softcam /m /p:Configuration=Release /p:Platform=$platform
+            if ($LASTEXITCODE -ne 0) { throw "Softcam $platform build failed" }
+          }
+          $out = "packaging\windows\virtual-camera"
+          New-Item -ItemType Directory -Force "$out\x64", "$out\x86" | Out-Null
+          Copy-Item softcam\dist\bin\x64\softcam.dll "$out\x64\"
+          Copy-Item softcam\dist\bin\Win32\softcam.dll "$out\x86\"
+          Copy-Item softcam\LICENSE "$out\softcam-LICENSE.txt"
+          # Both must export the sender API the app loads.
+          $dumpbin = Get-ChildItem "${env:ProgramFiles}\Microsoft Visual Studio\2022\*\VC\Tools\MSVC\*\bin\Hostx64\x64\dumpbin.exe" | Select-Object -Last 1
+          foreach ($dll in "$out\x64\softcam.dll", "$out\x86\softcam.dll") {
+            $exports = & $dumpbin /exports $dll | Out-String
+            if ($exports -notmatch "scCreateCamera" -or $exports -notmatch "scSendFrame") { throw "$dll lacks the Softcam API" }
+          }
+      - name: Sign DLLs (only when a certificate is configured)
         if: steps.cert.outputs.present == 'true'
         shell: pwsh
         env:
@@ -134,14 +145,46 @@ jobs:
         run: |
           [IO.File]::WriteAllBytes("cert.pfx", [Convert]::FromBase64String($env:CERT_PFX_BASE64))
           $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" | Select-Object -Last 1
-          & $signtool sign /f cert.pfx /p $env:CERT_PASSWORD /fd sha256 /tr http://timestamp.digicert.com /td sha256 packaging\windows\virtual-camera\softcam.dll
-          if ((Get-AuthenticodeSignature packaging\windows\virtual-camera\softcam.dll).Status -ne 'Valid') { throw "softcam.dll is not validly signed" }
+          foreach ($dll in "packaging\windows\virtual-camera\x64\softcam.dll", "packaging\windows\virtual-camera\x86\softcam.dll") {
+            & $signtool sign /f cert.pfx /p $env:CERT_PASSWORD /fd sha256 /tr http://timestamp.digicert.com /td sha256 $dll
+            if ((Get-AuthenticodeSignature $dll).Status -ne 'Valid') { throw "$dll is not validly signed" }
+          }
+          Remove-Item cert.pfx
+      - name: Build component installer
+        shell: pwsh
+        run: |
           cd packaging\windows\virtual-camera
-          & "C:\Program Files (x86)\NSIS\makensis.exe" /DSOFTCAM_DLL=softcam.dll /DVERSION=$env:SOFTCAM_REF softcam-component.nsi
-          & $signtool sign /f ..\..\..\cert.pfx /p $env:CERT_PASSWORD /fd sha256 /tr http://timestamp.digicert.com /td sha256 BadConnectionStudio-VirtualCamera-*-Setup.exe
-          Remove-Item ..\..\..\cert.pfx
-      - uses: actions/upload-artifact@v4
+          & "C:\Program Files (x86)\NSIS\makensis.exe" /DVERSION=$env:SOFTCAM_REF softcam-component.nsi
+          if ($LASTEXITCODE -ne 0) { throw "makensis failed" }
+      - name: Sign installer (only when a certificate is configured)
         if: steps.cert.outputs.present == 'true'
+        shell: pwsh
+        env:
+          CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        run: |
+          [IO.File]::WriteAllBytes("cert.pfx", [Convert]::FromBase64String($env:CERT_PFX_BASE64))
+          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" | Select-Object -Last 1
+          & $signtool sign /f cert.pfx /p $env:CERT_PASSWORD /fd sha256 /tr http://timestamp.digicert.com /td sha256 packaging\windows\virtual-camera\BadConnectionStudio-VirtualCamera-windows-setup.exe
+          Remove-Item cert.pfx
+      - name: Silent install, check registration, uninstall
+        shell: pwsh
+        run: |
+          $setup = "packaging\windows\virtual-camera\BadConnectionStudio-VirtualCamera-windows-setup.exe"
+          Start-Process -Wait -FilePath $setup -ArgumentList "/S"
+          $dll = (Get-ItemProperty "HKLM:\Software\BadConnectionStudio\VirtualCamera").DllPath
+          if (-not (Test-Path $dll)) { throw "DllPath not recorded" }
+          # DirectShow video input category: Softcam registers its filter there,
+          # in the 64-bit and the 32-bit (WOW6432Node) views.
+          $cat = "CLSID\{860BB310-5D01-11d0-BD3B-00A0C911CE86}\Instance"
+          $n64 = (Get-ChildItem "Registry::HKEY_CLASSES_ROOT\$cat" | Where-Object { (Get-ItemProperty $_.PSPath).FriendlyName -match "Softcam" }).Count
+          $n32 = (Get-ChildItem "Registry::HKEY_CLASSES_ROOT\WOW6432Node\$cat" | Where-Object { (Get-ItemProperty $_.PSPath).FriendlyName -match "Softcam" }).Count
+          Write-Host "Softcam filters: 64-bit $n64, 32-bit $n32"
+          if ($n64 -lt 1 -or $n32 -lt 1) { throw "Softcam is not registered for both 64-bit and 32-bit apps" }
+          Start-Process -Wait -FilePath "$(Split-Path (Split-Path $dll))\Uninstall.exe" -ArgumentList "/S"
+          Start-Sleep 3
+          if (Test-Path "HKLM:\Software\BadConnectionStudio\VirtualCamera") { throw "uninstall left the registry key" }
+      - uses: actions/upload-artifact@v4
         with:
           name: windows-virtual-camera-component
-          path: packaging/windows/virtual-camera/BadConnectionStudio-VirtualCamera-*-Setup.exe
+          path: packaging/windows/virtual-camera/BadConnectionStudio-VirtualCamera-windows-setup.exe
