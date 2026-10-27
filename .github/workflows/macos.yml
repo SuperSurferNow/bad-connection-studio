@@ -30,7 +30,9 @@ jobs:
         with:
           version: ${{ env.QT_VERSION }}
           modules: qtmultimedia
-          cache: true
+          # No cache: a later step removes Qt's FFmpeg plugin, and a cached
+          # copy without it would break the next Configure.
+          cache: false
       - name: Restore FFmpeg build
         id: ffmpeg-cache
         uses: actions/cache@v4
