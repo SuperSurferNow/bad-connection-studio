@@ -4,6 +4,7 @@
 #include "core/VideoCapture.h"
 #include "core/VideoPipeline.h"
 
+#include <cstdlib>
 #include <QCoreApplication>
 #include <QElapsedTimer>
 
@@ -73,7 +74,9 @@ int main(int argc, char** argv)
         // Same index again: no new frame.
         CHECK(clip.videoFrameAt(0, 0, &idx) == nullptr);
         // Late position: a later frame.
-        CHECK(clip.videoFrameAt(d - 1, -1, &idx) != nullptr && idx > 50);
+        // (Windows sleeps in ~15.6 ms steps, so fewer frames fit in the trimmed
+        // clip there than the 80 recorded.)
+        CHECK(clip.videoFrameAt(d - 1, -1, &idx) != nullptr && idx > 30);
 
         // Loop clock wraps.
         clip.startPlayback();
@@ -123,7 +126,7 @@ int main(int argc, char** argv)
         });
         VideoPipelineConfig cfg;
         cfg.camera = testPatternCamera();
-        cfg.codec.encoder = encoderAvailable("libx264") ? "libx264" : "libvpx";
+        cfg.codec.encoder = std::getenv("BCS_TEST_ENCODER") ? std::getenv("BCS_TEST_ENCODER") : encoderAvailable("libx264") ? "libx264" : "libvpx";
         cfg.codec.width = 640;
         cfg.codec.height = 360;
         cfg.codec.bitrateKbps = 300;
@@ -150,10 +153,19 @@ int main(int argc, char** argv)
         CHECK(s.bitrateKbps == 80);
         CHECK(p.state() == VideoPipeline::State::Running);
 
+        // Back to live: the camera is read at full rate again, and frames
+        // reach the output. How many do is up to the codec and the machine:
+        // VP8 (CI's Fedora FFmpeg has no x264) skips frames at 80 kbit/s after
+        // the content changes, and slow runners drop late frames by design.
         p.setLooping(false);
-        const uint64_t live = p.stats().output;
+        const VideoStats l0 = p.stats();
         runFor(800);
-        CHECK(p.stats().output - live > 15);
+        const VideoStats l1 = p.stats();
+        std::printf("live again (%s): captured +%llu, output +%llu, skipped +%llu\n", l1.codec.c_str(),
+                    (unsigned long long)(l1.captured - l0.captured), (unsigned long long)(l1.output - l0.output),
+                    (unsigned long long)(l1.skippedByEncoder - l0.skippedByEncoder));
+        CHECK(l1.captured - l0.captured > 15);
+        CHECK(l1.output - l0.output > 5);
         CHECK(p.stats().latencyMs < 150);
         p.stop();
         CHECK(problems == 0);
