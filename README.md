@@ -1,3 +1,5 @@
+> This was created using Claude Opus 5.5, and is mainly tested in Fedora Linux as that is what I use. Any feedback is appreciated!
+
 # Bad Connection Studio
 
 [![Latest release](https://img.shields.io/github/v/release/SuperSurferNow/bad-connection-studio?label=latest%20release)](https://github.com/SuperSurferNow/bad-connection-studio/releases/latest)
