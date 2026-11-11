@@ -39,6 +39,9 @@ frame skipping, narrowband robotic speech. They are not filters.
   window.
 * **Output window (OBS bridge):** on any OS, show the degraded video in a
   window that OBS turns into a webcam. No driver needed.
+* **Camera look**: brightness, contrast and sharpness (left = soft, blurry
+  webcam; right = over-sharpened halos), applied before encoding so the codec
+  degrades the result. Works live and on loops.
 * Separate **Video quality** (50 – 2,000 kbit/s, default 150) and
   **Microphone quality** (6 – 64 kbit/s, Opus VoIP mode) sliders with
   tier labels ("Very degraded — 50 kbit/s"), plus the measured bitrate.

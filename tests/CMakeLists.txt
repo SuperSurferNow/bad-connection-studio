@@ -7,6 +7,7 @@ endfunction()
 
 bcs_add_test(test_quality_mapping)
 bcs_add_test(test_buffers)
+bcs_add_test(test_image_adjust)
 bcs_add_test(test_video_roundtrip)
 bcs_add_test(test_audio_roundtrip)
 bcs_add_test(test_video_pipeline)
@@ -22,3 +23,8 @@ if(BCS_LINUX)
     target_compile_definitions(test_loopback_setup PRIVATE
         BCS_HELPER_SCRIPT="${PROJECT_SOURCE_DIR}/packaging/linux/bcs-loopback-helper.sh")
 endif()
+
+# Real virtual devices (v4l2loopback, PipeWire), read back from the consumer
+# side. Exits 77 = skipped when neither exists (CI containers).
+bcs_add_test(test_virtual_devices)
+set_tests_properties(test_virtual_devices PROPERTIES SKIP_RETURN_CODE 77)

@@ -211,6 +211,19 @@ QWidget* MainWindow::buildVideoBox()
     v->addLayout(ends);
     v->addWidget(hint(tr("Sets the encoder's target bitrate. Resolution only changes if you change it below.")));
 
+    // Camera look: applied to the clean image before encoding.
+    auto* look = new QFormLayout;
+    for (auto [slider, name] : {std::pair{&m_brightness, tr("Brightness")}, std::pair{&m_contrast, tr("Contrast")},
+                                std::pair{&m_sharpness, tr("Sharpness")}}) {
+        *slider = new QSlider(Qt::Horizontal);
+        (*slider)->setRange(-100, 100);
+        look->addRow(name, *slider);
+    }
+    m_sharpness->setToolTip(tr("Left: soft, blurry webcam. Right: over-sharpened, crunchy edges."));
+    m_resetLook = new QPushButton(tr("Reset camera look"));
+    look->addRow(m_resetLook);
+    v->addLayout(look);
+
     m_videoAdvToggle = new QToolButton;
     m_videoAdvToggle->setText(tr("Advanced video settings"));
     m_videoAdvToggle->setCheckable(true);
@@ -439,6 +452,12 @@ void MainWindow::connectSignals()
     connect(m_audioSlider, &QSlider::valueChanged, this, &MainWindow::onAudioSlider);
 
     // Debounce: dragging a slider should not restart a codec 60 times.
+    for (QSlider* s : {m_brightness, m_contrast, m_sharpness})
+        connect(s, &QSlider::valueChanged, this, [this] { m_video.setImageAdjust(adjustFromUi()); });
+    connect(m_resetLook, &QPushButton::clicked, this, [this] {
+        for (QSlider* s : {m_brightness, m_contrast, m_sharpness})
+            s->setValue(0);
+    });
     m_videoDebounce.setSingleShot(true);
     m_videoDebounce.setInterval(120);
     connect(&m_videoDebounce, &QTimer::timeout, this,
@@ -553,6 +572,9 @@ void MainWindow::applySettingsToUi()
     m_showVirtualInputs->setChecked(s.showVirtualInputs);
     m_showAllOutputs->setChecked(s.showAllAudioOutputs);
     m_yuyv->setChecked(s.v4l2Yuyv);
+    m_brightness->setValue(s.adjust.brightness);
+    m_contrast->setValue(s.adjust.contrast);
+    m_sharpness->setValue(s.adjust.sharpness);
     selectData(m_cameraCombo, s.cameraId);
     selectData(m_micCombo, s.micId);
     selectData(m_vcamCombo, s.virtualCameraKey);
@@ -797,6 +819,11 @@ AudioCodecConfig MainWindow::audioCodecFromUi() const
     return c;
 }
 
+ImageAdjust MainWindow::adjustFromUi() const
+{
+    return {m_brightness->value(), m_contrast->value(), m_sharpness->value()};
+}
+
 VideoPipelineConfig MainWindow::videoConfigFromUi()
 {
     VideoPipelineConfig cfg;
@@ -805,6 +832,7 @@ VideoPipelineConfig MainWindow::videoConfigFromUi()
         if (qs(c.id) == camId)
             cfg.camera = c;
     cfg.codec = videoCodecFromUi();
+    cfg.adjust = adjustFromUi();
     QSize cap = m_captureRes->currentData().toSize();
     cfg.capture.width = cap.width() > 0 ? cap.width() : cfg.codec.width;
     cfg.capture.height = cap.height() > 0 ? cap.height() : cfg.codec.height;
@@ -850,6 +878,7 @@ void MainWindow::storeSettings()
     s.showAllAudioOutputs = m_showAllOutputs->isChecked();
     s.v4l2Yuyv = m_yuyv->isChecked();
     s.video = videoCodecFromUi();
+    s.adjust = adjustFromUi();
     QSize cap = m_captureRes->currentData().toSize();
     s.captureWidth = cap.width() > 0 ? cap.width() : s.video.width;
     s.captureHeight = cap.height() > 0 ? cap.height() : s.video.height;
