@@ -5,6 +5,7 @@
 #include "core/CameraEnumerator.h"
 #include "core/Errors.h"
 #include "core/FfmpegUtil.h"
+#include "core/ImageAdjust.h"
 #include "core/LoopClip.h"
 #include "core/VideoCapture.h"
 #include "core/VideoCodecRoundTrip.h"
@@ -25,6 +26,7 @@ struct VideoPipelineConfig {
     CameraDevice camera;
     CaptureRequest capture;
     VideoCodecConfig codec;
+    ImageAdjust adjust;
     std::string cameraBackendId; // empty: preview only
     std::string cameraDeviceId;
     BackendOptions backendOptions;
@@ -74,6 +76,7 @@ public:
     // virtual device keep running.
     void setBitrate(int kbps);
     void setCodecConfig(const VideoCodecConfig& cfg);
+    void setImageAdjust(const ImageAdjust& a);
 
     VideoStats stats() const;
     void previewConsumed() { m_previewBusy = false; }
@@ -122,11 +125,13 @@ private:
     std::mutex m_pendingMutex;
     std::optional<VideoCodecConfig> m_pendingCodec;
     std::atomic<int> m_pendingBitrate{0};
+    ImageAdjust m_adjust; // guarded by m_pendingMutex
 
     // codec-thread state
     VideoCodecRoundTrip m_codec;
     SwsPtr m_scaler;
     int m_scalerKey[3] = {0, 0, -1};
+    std::vector<uint16_t> m_adjustScratch;
     // output-thread state
     SwsPtr m_previewScaler;
     int m_previewKey[3] = {0, 0, -1};

@@ -64,6 +64,7 @@ private:
 
     // config from UI
     VideoCodecConfig videoCodecFromUi() const;
+    ImageAdjust adjustFromUi() const;
     AudioCodecConfig audioCodecFromUi() const;
     VideoPipelineConfig videoConfigFromUi();
     AudioPipelineConfig audioConfigFromUi();
@@ -124,6 +125,10 @@ private:
     QSlider* m_videoSlider = nullptr;
     QLabel* m_videoLabel = nullptr;
     QLabel* m_videoActual = nullptr;
+    QSlider* m_brightness = nullptr;
+    QSlider* m_contrast = nullptr;
+    QSlider* m_sharpness = nullptr;
+    QPushButton* m_resetLook = nullptr;
     QToolButton* m_videoAdvToggle = nullptr;
     QWidget* m_videoAdv = nullptr;
     QComboBox* m_videoCodec = nullptr;

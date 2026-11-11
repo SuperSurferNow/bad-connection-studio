@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/AudioCodecRoundTrip.h"
+#include "core/ImageAdjust.h"
 #include "core/VideoCodecRoundTrip.h"
 
 #include <QString>
@@ -19,6 +20,7 @@ struct AppSettings {
     bool v4l2Yuyv = false;
 
     VideoCodecConfig video;
+    ImageAdjust adjust;
     int captureWidth = 1280;
     int captureHeight = 720;
     QString captureInputFormat; // "", "mjpeg", "yuyv422"

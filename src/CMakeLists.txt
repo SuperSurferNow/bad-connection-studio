@@ -16,6 +16,7 @@ add_library(bcs_core STATIC
     core/SelfTest.h core/SelfTest.cpp
     core/SyntheticSource.h core/SyntheticSource.cpp
     core/LoopClip.h core/LoopClip.cpp
+    core/ImageAdjust.h core/ImageAdjust.cpp
     backend/VirtualCameraBackend.h
     backend/VirtualMicBackend.h
     backend/BackendRegistry.h backend/BackendRegistry.cpp

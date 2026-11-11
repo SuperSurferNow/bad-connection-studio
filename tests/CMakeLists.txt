@@ -7,6 +7,7 @@ endfunction()
 
 bcs_add_test(test_quality_mapping)
 bcs_add_test(test_buffers)
+bcs_add_test(test_image_adjust)
 bcs_add_test(test_video_roundtrip)
 bcs_add_test(test_audio_roundtrip)
 bcs_add_test(test_video_pipeline)

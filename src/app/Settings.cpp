@@ -47,6 +47,9 @@ AppSettings AppSettings::load()
     a.captureWidth = s.value("video/captureWidth", 1280).toInt();
     a.captureHeight = s.value("video/captureHeight", 720).toInt();
     a.captureInputFormat = s.value("video/captureInputFormat").toString();
+    a.adjust.brightness = std::clamp(s.value("video/brightness", 0).toInt(), -100, 100);
+    a.adjust.contrast = std::clamp(s.value("video/contrast", 0).toInt(), -100, 100);
+    a.adjust.sharpness = std::clamp(s.value("video/sharpness", 0).toInt(), -100, 100);
 
     a.audio.encoder = s.value("audio/codec", QString::fromStdString(firstAvailable(audioCodecChoices(), "libopus")))
                           .toString()
@@ -85,6 +88,9 @@ void AppSettings::save() const
     s.setValue("video/captureWidth", captureWidth);
     s.setValue("video/captureHeight", captureHeight);
     s.setValue("video/captureInputFormat", captureInputFormat);
+    s.setValue("video/brightness", adjust.brightness);
+    s.setValue("video/contrast", adjust.contrast);
+    s.setValue("video/sharpness", adjust.sharpness);
 
     s.setValue("audio/codec", QString::fromStdString(audio.encoder));
     s.setValue("audio/bitrateKbps", audio.bitrateKbps);

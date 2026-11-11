@@ -61,6 +61,7 @@ void VideoPipeline::start(const VideoPipelineConfig& cfg)
     {
         std::lock_guard lk(m_pendingMutex);
         m_pendingCodec.reset();
+        m_adjust = cfg.adjust;
     }
     m_rawQueue.reset();
     m_decodedQueue.reset();
@@ -126,6 +127,12 @@ void VideoPipeline::stop()
 }
 
 void VideoPipeline::setBitrate(int kbps) { m_pendingBitrate = kbps; }
+
+void VideoPipeline::setImageAdjust(const ImageAdjust& a)
+{
+    std::lock_guard lk(m_pendingMutex);
+    m_adjust = a;
+}
 
 void VideoPipeline::setCodecConfig(const VideoCodecConfig& cfg)
 {
@@ -360,6 +367,12 @@ void VideoPipeline::codecLoop()
         FramePtr in = scaleForEncoder(item->frame.get());
         if (!in)
             continue;
+        ImageAdjust adjust;
+        {
+            std::lock_guard lk(m_pendingMutex);
+            adjust = m_adjust;
+        }
+        applyImageAdjust(in.get(), adjust, m_adjustScratch);
         std::vector<FramePtr> decoded;
         uint64_t bytesBefore = m_codec.encodedBytes();
         int64_t skippedBefore = m_codec.skippedFrames();
